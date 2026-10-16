@@ -1,0 +1,58 @@
+name: Restore verified fine-tuned checkpoint
+
+on:
+  push:
+    branches: [migration/reference-code-and-artifacts]
+    paths:
+      - "models/finetuned/_checkpoint_chunks/**"
+      - ".github/workflows/restore-checkpoint.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  restore-checkpoint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Rebuild verified checkpoint from temporary Git chunks
+        run: |
+          python - <<'PY'
+          import base64, hashlib
+          from pathlib import Path
+
+          chunk_dir = Path("models/finetuned/_checkpoint_chunks")
+          pieces = sorted(chunk_dir.glob("*.b64"))
+          assert len(pieces) == 28, f"Expected 28 parts, found {len(pieces)}"
+          assert [p.name for p in pieces] == [f"{i:03d}.b64" for i in range(28)]
+          encoded = "".join(p.read_text(encoding="utf-8") for p in pieces)
+          checkpoint = base64.b64decode(encoded, validate=True)
+          assert len(checkpoint) == 3321819, len(checkpoint)
+          expected = "47e7e35f090fbc1e0a3fc0fb06501112cfc67ae9daba0f094bb220f0baf69637"
+          actual = hashlib.sha256(checkpoint).hexdigest()
+          assert actual == expected, (actual, expected)
+          output = Path("models/finetuned/best_finetuned_model.pt")
+          output.write_bytes(checkpoint)
+          print(f"Rebuilt and verified {output} ({len(checkpoint)} bytes, SHA-256 {actual})")
+          PY
+      - name: Install CPU PyTorch
+        run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install project and tests
+        run: python -m pip install -e . -r requirements-dev.txt
+      - name: Validate restored checkpoint and inference
+        run: python -m pytest -q
+      - name: Commit checkpoint and remove temporary chunks
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -r models/finetuned/_checkpoint_chunks
+          git add models/finetuned/best_finetuned_model.pt
+          git commit -m "build: restore and verify fine-tuned model checkpoint"
+          git push origin HEAD:migration/reference-code-and-artifacts
