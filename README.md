@@ -4,15 +4,16 @@ Proyek skripsi **Diakritisasi Otomatis Teks Arab Gundul pada Kitab Fathul Qorib 
 
 ## Status migrasi
 
-**Dalam pengembangan, belum siap sebagai aplikasi inferensi lengkap.** Kode UI dan backend rujukan, mapping, konfigurasi, dan metrik historis telah disusun pada branch migrasi. Checkpoint `.pt` harus dipindahkan dan diverifikasi sebelum hasil inferensi dapat diuji. Notebook training asli dan dataset mentah belum dipindahkan.
+**Dalam pengembangan, belum dinyatakan selesai.** Backend rujukan, UI, mapping, konfigurasi, metrik historis, dan checkpoint *fine-tuned* sudah disimpan pada branch migrasi. SHA-256 checkpoint sudah cocok dengan sumber dan pengujian inferensi dasar berhasil. Notebook training asli, checkpoint baseline/pretrained, dan dataset mentah belum dipindahkan; interaksi UI manual/TXT/CSV belum diuji penuh.
 
 **Sumber kode** tetap tersimpan pada repositori privat `may-ysaa24/diakritisasi-arab`. Penelitian menggunakan dua jalur model: baseline di Fathul Qorib, serta model pretrain Tashkeela lalu fine-tune Fathul Qorib.
 
-## Jalankan di VS Code (setelah checkpoint tersedia)
+## Jalankan di VS Code (setelah branch migrasi digabungkan)
 
 ```powershell
 git clone https://github.com/may-ysaa24/arabic-diacritization.git
 cd arabic-diacritization
+git switch migration/reference-code-and-artifacts
 py -3.12 -m venv .venv
 .venv\Scripts\python.exe -m pip install -e . -r requirements-dev.txt
 .venv\Scripts\python.exe -m pytest -q

@@ -1,6 +1,7 @@
-"""Verify the migrated interfaces without asserting checkpoint availability."""
+"""Verify migrated interfaces and actual fine-tuned model inference."""
 
 import json
+import hashlib
 import sys
 from pathlib import Path
 
@@ -46,11 +47,10 @@ def test_legacy_streamlit_import_api():
     assert (ROOT / "streamlit_app/assets/logo_unimal.png").is_file()
 
 
-@pytest.mark.skipif(
-    not (ROOT / "models/finetuned/best_finetuned_model.pt").exists(),
-    reason="Fine-tuned checkpoint not yet transferred; cannot validate inference output",
-)
-def test_checkpoint_inference_when_available():
+def test_checkpoint_sha256_and_inference():
+    checkpoint = ROOT / "models/finetuned/best_finetuned_model.pt"
+    assert checkpoint.is_file()
+    assert hashlib.sha256(checkpoint.read_bytes()).hexdigest() == "47e7e35f090fbc1e0a3fc0fb06501112cfc67ae9daba0f094bb220f0baf69637"
     status = inference.health_check()
     assert status["success"], status.get("message")
     result = inference.predict_long_text("الحمد لله رب العالمين")

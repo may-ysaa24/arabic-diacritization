@@ -11,9 +11,10 @@ Original code and artifact source: private GitHub `may-ysaa24/diakritisasi-arab`
 - [x] Copy original Streamlit UI and historical mapping/configuration/evaluation artifacts.
 - [x] Preserve original backend implementation, changing only its project-root derivation after placing it inside `src/`.
 - [x] Add public package entry points and compatibility import for existing UI.
-- [ ] Migrate and verify fine-tuned model checkpoint (`best_finetuned_model.pt`).
+- [x] Migrate and verify fine-tuned model checkpoint (`best_finetuned_model.pt`): 3,321,819 bytes, SHA-256 `47e7e35f090fbc1e0a3fc0fb06501112cfc67ae9daba0f094bb220f0baf69637`.
 - [ ] Migrate other checkpoints and research notebooks.
-- [ ] Test actual inference on the new checkpoint and compare outputs with the original repository.
+- [x] Test inference via GitHub Actions using the migrated checkpoint (6 tests passed).
+- [ ] Compare full output with original reference deployment and verify end-to-end results.
 - [ ] Extract implementation from `_reference_engine.py` into independent modules after regression tests.
 - [ ] Verify Streamlit manual, TXT, CSV, and download workflows interactively.
 - [ ] Merge reviewed changes to `main`.
