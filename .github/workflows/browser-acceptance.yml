@@ -1,0 +1,55 @@
+name: Real browser acceptance
+
+on:
+  push:
+    branches: [migration/reference-code-and-artifacts]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install CPU PyTorch
+        run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install app, browser runner, and tests
+        run: |
+          python -m pip install -e . -r requirements-dev.txt
+          python -m pip install "playwright>=1.50,<2"
+          python -m playwright install --with-deps chromium
+      - name: Launch real Streamlit server
+        run: |
+          mkdir -p results/browser-acceptance
+          nohup python -m streamlit run streamlit_app/app.py \
+            --server.headless=true \
+            --server.port=8501 \
+            --server.address=127.0.0.1 \
+            --browser.gatherUsageStats=false \
+            > results/browser-acceptance/streamlit-server.log 2>&1 &
+          echo $! > results/browser-acceptance/streamlit.pid
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8501/_stcore/health; then
+              echo "Streamlit HTTP health endpoint ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          cat results/browser-acceptance/streamlit-server.log
+          exit 1
+      - name: Test user journeys in Chromium
+        run: python scripts/browser_acceptance.py
+      - name: Upload browser screenshots and server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamlit-browser-acceptance
+          path: results/browser-acceptance/
+          if-no-files-found: warn
+          retention-days: 14
