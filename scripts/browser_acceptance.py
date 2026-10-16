@@ -118,6 +118,41 @@ def test_navigation(context):
     page.close()
 
 
+def test_mobile(browser):
+    """Check the redesigned user flow at a narrow phone viewport."""
+    mobile = browser.new_context(
+        accept_downloads=True,
+        viewport={"width": 390, "height": 844},
+        device_scale_factor=1,
+        is_mobile=True,
+        has_touch=True,
+        reduced_motion="reduce",
+    )
+    try:
+        page = mobile.new_page()
+        page.set_default_timeout(45_000)
+        page.goto(BASE_URL, wait_until="domcontentloaded")
+        expect(page.get_by_role("button", name="Mulai Diakritisasi")).to_be_visible(timeout=90_000)
+        page.screenshot(path=str(SCREENSHOTS / "mobile_home.png"), full_page=True)
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 4"), (
+            "Home page overflows narrow viewport"
+        )
+        page.get_by_role("button", name="Mulai Diakritisasi").click()
+        expect(page.get_by_role("textbox", name="Teks Arab")).to_be_visible()
+        page.get_by_role("textbox", name="Teks Arab").fill(ARABIC)
+        page.get_by_role("button", name="Proses Diakritisasi").click()
+        expect(page.get_by_role("button", name="Unduh hasil TXT")).to_be_visible(timeout=90_000)
+        page.screenshot(path=str(SCREENSHOTS / "mobile_result.png"), full_page=True)
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 4"), (
+            "Result page overflows narrow viewport"
+        )
+        with page.expect_download(timeout=45_000) as download_info:
+            page.get_by_role("button", name="Unduh hasil TXT").click()
+        assert_download(download_info.value, "hasil_diakritisasi.txt")
+    finally:
+        mobile.close()
+
+
 def main():
     failures = []
     with sync_playwright() as playwright:
@@ -153,11 +188,18 @@ def main():
                 print(f"FAIL browser test: {name}: {exc}", flush=True)
                 for page in context.pages:
                     page.close()
+        try:
+            print("START browser test: mobile", flush=True)
+            test_mobile(browser)
+            print("PASS browser test: mobile", flush=True)
+        except Exception as exc:
+            failures.append(("mobile", str(exc)))
+            print(f"FAIL browser test: mobile: {exc}", flush=True)
         context.close()
         browser.close()
     if failures:
         raise AssertionError(f"Browser acceptance failures: {failures}")
-    print("All 4 browser acceptance journeys passed.")
+    print("All 5 browser acceptance journeys passed.")
 
 
 if __name__ == "__main__":
