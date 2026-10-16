@@ -1,5 +1,3 @@
-"""Read-only access to stored experiment metrics (not re-evaluation)."""
-
-from ._reference_engine import get_metrics
-
+"""Read-only stored research metrics."""
+from .inference import get_metrics
 __all__ = ["get_metrics"]

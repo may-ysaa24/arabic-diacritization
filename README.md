@@ -23,16 +23,17 @@ py -3.12 -m venv .venv
 ## Arsitektur kode
 
 - `src/arabic_diacritization/_reference_engine.py`: backend penelitian yang dipertahankan untuk uji kesetaraan. Perubahan hanya pada penentuan akar direktori paket.
-- `src/arabic_diacritization/model.py`: antarmuka kelas BiLSTM–CRF.
-- `src/arabic_diacritization/preprocessing.py`: antarmuka pembersihan dan validasi teks.
-- `src/arabic_diacritization/inference.py`: antarmuka prediksi dan rekonstruksi harakat.
-- `src/arabic_diacritization/file_processing.py`: antarmuka unggahan TXT/CSV.
+- `src/arabic_diacritization/model.py`: kelas dan lapisan BiLSTM–CRF.
+- `src/arabic_diacritization/preprocessing.py`: fungsi pembersihan dan validasi teks.
+- `src/arabic_diacritization/inference.py`: pemuatan checkpoint, prediksi dan rekonstruksi harakat.
+- `src/arabic_diacritization/file_processing.py`: pengolahan TXT/CSV dan unduhan.
+- `src/arabic_diacritization/config.py`: path model/mapping dan batas file.
 - `src/arabic_diacritization/evaluation.py`: pembacaan metrik yang tersimpan.
 - `streamlit_app/`: aplikasi, desain alternatif, dan shim kompatibilitas lama.
 - `models/`, `mappings/`, `evaluation/`: tiga checkpoint asli, mapping, konfigurasi, dan keluaran penelitian dari repositori referensi.
 - `tests/`: pengujian fungsi, sumber artefak, dan integrasi. Pengujian checkpoint dilewati secara eksplisit jika file belum tersedia.
 
-Implementasi model belum dipisahkan sepenuhnya dari engine referensi; modul di atas pada tahap ini adalah *public API wrappers* demi migrasi bertahap tanpa perubahan algoritma.
+Implementasi model, preprocessing, inferensi, dan pemrosesan TXT/CSV kini dipisah dalam modul independen. `_reference_engine.py` tetap dipertahankan sebagai pembanding pengujian regresi dan tidak digunakan aplikasi.
 
 ## Batas hasil
 

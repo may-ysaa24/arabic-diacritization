@@ -117,3 +117,37 @@ def test_streamlit_manual_navigation_and_prediction():
     result = app.session_state["manual_result"]
     assert result and result["success"], result
     assert engine.remove_arabic_diacritics(result["prediction"]) == result["clean_text"]
+
+
+def test_modular_inference_matches_reference_exactly():
+    from arabic_diacritization import inference, preprocessing
+    samples = (
+        "الحمد لله رب العالمين",
+        "قال الشيخ الإمام العالم العلامة شمس الدين",
+        "وأسأله الهداية إلى سواء السبيل",
+        "الْحَمْدُ لِلَّهِ",
+        "قال الشيخ الإمام العالم " * 30,
+    )
+    for sample in samples:
+        assert inference.predict_long_text(sample) == engine.predict_long_text(sample), sample
+    assert inference.health_check()["model"] == engine.health_check()["model"]
+    assert inference.get_metrics() == engine.get_metrics()
+    for max_len in (8, 50, 300):
+        sample = "قال الشيخ الإمام العالم " * 6
+        assert inference.split_long_text(sample, max_len=max_len) == engine.split_long_text(sample, max_len=max_len)
+    assert preprocessing.remove_arabic_diacritics("بِسْمِ اللَّهِ") == engine.remove_arabic_diacritics("بِسْمِ اللَّهِ")
+
+
+def test_modular_txt_csv_matches_reference_exactly():
+    from arabic_diacritization import file_processing
+    raw = "الحمد لله\n\nabc\n".encode()
+    assert file_processing.process_txt_bytes(raw, filename="test.txt") == engine.process_txt_bytes(raw, filename="test.txt")
+    raw_csv = "teks,id\nالحمد لله,1\nabc,2\n".encode()
+    old = engine.process_csv_bytes(raw_csv, filename="test.csv", text_column="teks")
+    new = file_processing.process_csv_bytes(raw_csv, filename="test.csv", text_column="teks")
+    assert set(old) == set(new)
+    for key in old:
+        if key == "dataframe":
+            assert old[key].equals(new[key])
+        else:
+            assert old[key] == new[key], key

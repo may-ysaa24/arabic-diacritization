@@ -16,7 +16,8 @@ Original code and artifact source: private GitHub `may-ysaa24/diakritisasi-arab`
 - [x] Migrate all 10 research notebooks, preserving exact Git blob hashes and original cell content.
 - [x] Test inference via GitHub Actions using the migrated checkpoint (6 tests passed).
 - [ ] Compare full output with original reference deployment and verify end-to-end results.
-- [ ] Extract implementation from `_reference_engine.py` into independent modules after regression tests.
+- [x] Extract model, preprocessing, inference, and TXT/CSV implementation into independent modules; retain the original for regression checks.
+- [ ] Extend regression tests across broader input and UI interaction scenarios.
 - [ ] Verify Streamlit manual, TXT, CSV, and download workflows interactively; automated checks cover the input/output contracts but not browser workflows.
 - [ ] Merge reviewed changes to `main`.
 

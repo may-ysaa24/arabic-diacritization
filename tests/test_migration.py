@@ -27,8 +27,8 @@ def test_preprocessing_contract():
     assert preprocessing.remove_arabic_diacritics("الْحَمْدُ") == "الحمد"
     assert preprocessing.validate_input("الحمد لله")["valid"]
     assert not preprocessing.validate_input("abc")["valid"]
-    assert model.BiLSTMCRF is reference.BiLSTMCRF
-    assert inference.predict_long_text is reference.predict_long_text
+    assert model.BiLSTMCRF is not reference.BiLSTMCRF
+    assert inference.predict_long_text is not reference.predict_long_text
 
 
 def test_mapping_and_metrics_provenance():
@@ -43,6 +43,7 @@ def test_legacy_streamlit_import_api():
     sys.path.insert(0, str(ROOT / "streamlit_app"))
     import inference_engine
     assert inference_engine.predict_long_text is inference.predict_long_text
+    assert inference_engine.predict_long_text is not reference.predict_long_text
     assert (ROOT / "streamlit_app/app.py").is_file()
     assert (ROOT / "streamlit_app/assets/logo_unimal.png").is_file()
 
