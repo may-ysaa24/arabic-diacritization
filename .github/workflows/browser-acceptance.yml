@@ -3,6 +3,11 @@ name: Real browser acceptance
 on:
   push:
     branches: [main, migration/reference-code-and-artifacts]
+  pull_request:
+    paths:
+      - 'streamlit_app/**'
+      - 'scripts/browser_acceptance.py'
+      - '.github/workflows/browser-acceptance.yml'
   workflow_dispatch:
 
 permissions:
