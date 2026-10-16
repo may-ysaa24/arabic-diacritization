@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.ipynb_checkpoints/
+.streamlit/secrets.toml
+.DS_Store
+*.log
+# Keep datasets out of version control until their license/privacy is reviewed.
+data/raw/
+data/processed/
+results/tmp/

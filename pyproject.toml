@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arabic-diacritization"
+version = "0.1.0"
+description = "Automatic Arabic diacritization research with BiLSTM-CRF"
+requires-python = ">=3.10"
+license = {text = "Proprietary; research repository"}
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
