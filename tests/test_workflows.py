@@ -151,3 +151,40 @@ def test_modular_txt_csv_matches_reference_exactly():
             assert old[key].equals(new[key])
         else:
             assert old[key] == new[key], key
+
+
+@pytest.mark.parametrize("text", [
+    "",
+    "   ",
+    "abc",
+    "الحمد لله abc",
+    "الحمد لله ١٢٣",
+    "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+    "؟!،،؛: 123",
+    "الْحَمْدُ" * 80,
+])
+def test_modular_prediction_edge_cases_match_reference(text):
+    from arabic_diacritization import inference
+    old = engine.predict_long_text(text)
+    new = inference.predict_long_text(text)
+    assert old == new, (text, old, new)
+
+
+@pytest.mark.parametrize("data", [
+    b"",
+    b"abc\n123\n",
+    "الحمد لله\r\nabc\r\n".encode("utf-8"),
+    "قال الشيخ الإمام العالم\n" * 10,
+])
+def test_modular_txt_edge_cases_match_reference(data):
+    from arabic_diacritization import file_processing
+    raw = data.encode("utf-8") if isinstance(data, str) else data
+    assert file_processing.process_txt_bytes(raw) == engine.process_txt_bytes(raw)
+
+
+def test_backend_compatibility_on_all_streamlit_pages():
+    from streamlit.testing.v1 import AppTest
+    for page in ("Beranda", "Diakritisasi", "Contoh Teks", "Tentang Model"):
+        app = AppTest.from_file(str(ROOT / "streamlit_app/app.py"), default_timeout=45).run()
+        app.radio(key="page").set_value(page).run()
+        assert not app.exception, (page, [str(e.message) for e in app.exception])
