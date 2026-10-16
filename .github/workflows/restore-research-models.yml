@@ -39,7 +39,7 @@ jobs:
               encoded = "".join(p.read_text(encoding="utf-8") for p in pieces)
               content = base64.b64decode(encoded, validate=True)
               assert len(content) == length, (name, len(content))
-              git_sha = hashlib.sha1(f"blob {len(content)}\\0".encode().replace(b"\\0", b"\\x00") + content).hexdigest()
+              git_sha = hashlib.sha1(f"blob {len(content)}".encode() + bytes([0]) + content).hexdigest()
               assert git_sha == expected_sha, (name, git_sha, expected_sha)
               (folder / filename).write_bytes(content)
               print(f"{name} verified: bytes={length} git_sha={git_sha} sha256={hashlib.sha256(content).hexdigest()}")
