@@ -97,8 +97,8 @@ def test_streamlit_app_initial_render():
 
 def test_backend_reference_only_differs_by_project_root():
     source = (ROOT / "src/arabic_diacritization/_reference_engine.py").read_text(encoding="utf-8")
-    replacement = "DEFAULT_PROJECT_ROOT = (\\n    Path(__file__).resolve().parents[2]\\n)"
-    original_block = "DEFAULT_PROJECT_ROOT = (\\n    APP_DIR.parent\\n)"
+    replacement = "\n".join(["DEFAULT_PROJECT_ROOT = (", "    Path(__file__).resolve().parents[2]", ")"])
+    original_block = "\n".join(["DEFAULT_PROJECT_ROOT = (", "    APP_DIR.parent", ")"])
     assert source.count(replacement) == 1
     restored = source.replace(replacement, original_block).encode("utf-8")
     old_sha = hashlib.sha1(f"blob {len(restored)}".encode() + bytes([0]) + restored).hexdigest()
