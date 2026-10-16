@@ -2,7 +2,7 @@ name: Real browser acceptance
 
 on:
   push:
-    branches: [migration/reference-code-and-artifacts]
+    branches: [main, migration/reference-code-and-artifacts]
   workflow_dispatch:
 
 permissions:
