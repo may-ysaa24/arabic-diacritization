@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "best_model_loadable": true,
+  "validation_loss_verified": true,
+  "test_data_used": false,
+  "tashkeela_used": false,
+  "best_epoch": 78,
+  "best_validation_loss": 0.19209198289504262
+}

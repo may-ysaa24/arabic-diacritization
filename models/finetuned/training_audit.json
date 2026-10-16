@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "pretrained_weights_loaded": true,
+  "mapping_compatible": true,
+  "optimizer_reset": true,
+  "all_layers_finetuned": true,
+  "best_model_loadable": true,
+  "validation_loss_verified": true,
+  "test_data_used": false,
+  "pretrained_epoch": 62,
+  "best_finetuning_epoch": 46,
+  "best_validation_loss": 0.14247237725212508
+}

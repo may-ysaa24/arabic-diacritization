@@ -1,29 +1,47 @@
 # Arabic Diacritization with BiLSTM–CRF
 
-Research software for automatic Arabic diacritization of *Fathul Qorib* text using a Bidirectional Long Short-Term Memory (BiLSTM) model and Conditional Random Field (CRF).
+Proyek skripsi **Diakritisasi Otomatis Teks Arab Gundul pada Kitab Fathul Qorib Menggunakan Model Bidirectional Long Short-Term Memory (BiLSTM) dan Conditional Random Field (CRF)**.
 
-> **Status:** Repository initialization. Original research code, trained checkpoints, and evaluation artifacts have **not** yet been migrated or validated here.
+## Status implementasi
 
-## Repository organization
+Kode penelitian telah direstrukturisasi secara modular tanpa melatih ulang model. Ketiga checkpoint dan sepuluh notebook penelitian disalin dengan hash Git identik dengan repositori sumber. Implementasi refaktor diverifikasi terhadap backend referensi pada sekumpulan input Arab, teks panjang, kasus tepi, dan TXT/CSV.
 
-- `src/arabic_diacritization/`: reusable Python modules (to be migrated and verified).
-- `streamlit_app/`: user interface (to be migrated and verified).
-- `configs/`: experiment configuration.
-- `scripts/`: controlled training, evaluation, and inference entry points.
-- `tests/`: regression and functionality tests.
-- `docs/`: architecture, migration, and reproducibility notes.
-- `data/`: documentation and local data placement; do not commit restricted datasets.
-- `models/`: model artifact documentation; checkpoints will only be migrated after verification.
-- `results/`: experiment outputs and published comparisons.
-- `notebooks/`: research notebooks (to be migrated separately).
+**Hasil pengujian otomatis pada migrasi:**
+- **29 tes Python lulus**, termasuk kesetaraan hasil referensi/modular, integritas artefak, navigasi dan prediksi Streamlit melalui AppTest. [Lihat run](https://github.com/may-ysaa24/arabic-diacritization/actions/runs/38960160756).
+- **4 perjalanan pengguna lulus dengan Chromium sungguhan**: prediksi manual, unggah/unduh TXT, unggah/unduh CSV, dan navigasi halaman. [Lihat run dan tangkapan layar](https://github.com/may-ysaa24/arabic-diacritization/actions/runs/38960889522).
 
-## Migration policy
+**Batas bukti:** pengujian berlangsung di Linux GitHub Actions dengan Chromium *headless*, bukan pemeriksaan visual manual di Windows. Tidak ada training maupun evaluasi ulang dataset penelitian; angka metrik historis tidak berubah.
 
-The existing private repository [`may-ysaa24/diakritisasi-arab`](https://github.com/may-ysaa24/diakritisasi-arab) is retained untouched as the reference implementation. Refactoring must preserve preprocessing semantics, model architecture, label mappings, and checkpoint compatibility. Numerical equivalence will be claimed only after regression tests pass. Do not retrain merely to reorganize files.
+Repositori sumber [`may-ysaa24/diakritisasi-arab`](https://github.com/may-ysaa24/diakritisasi-arab) tetap disimpan privat dan tidak diubah. Dataset mentah dan dokumen OCR tetap di Google Drive sampai izin redistribusinya dipastikan.
 
-## Next steps
+## Menjalankan di Windows dengan VS Code (Python 3.12)
 
-1. Audit source interfaces and the checkpoint dependencies.
-2. Port modules and artifacts through a reviewable migration commit.
-3. Compare reference and migrated inference on identical input.
-4. Validate Streamlit startup and CI before marking the migration complete.
+```powershell
+git clone https://github.com/may-ysaa24/arabic-diacritization.git
+cd arabic-diacritization
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install -e . -r requirements-dev.txt
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\python.exe -m streamlit run streamlit_app/app.py
+```
+
+Buka URL yang ditampilkan Streamlit (biasanya `http://localhost:8501`). Unduhan hasil prediksi TXT/CSV dapat diuji langsung dari UI.
+
+## Struktur penting
+
+- `src/arabic_diacritization/config.py`: lokasi konfigurasi, mapping dan artefak model.
+- `src/arabic_diacritization/model.py`: arsitektur BiLSTM–CRF dan komponen PyTorch.
+- `src/arabic_diacritization/preprocessing.py`: normalisasi, pembersihan dan validasi teks Arab.
+- `src/arabic_diacritization/inference.py`: pemuatan checkpoint, decoding dan rekonstruksi harakat.
+- `src/arabic_diacritization/file_processing.py`: pengolahan TXT/CSV, pratinjau dan unduhan.
+- `src/arabic_diacritization/evaluation.py`: pembacaan metrik historis.
+- `src/arabic_diacritization/_reference_engine.py`: salinan backend lama untuk pengujian kesetaraan **saja**.
+- `streamlit_app/`: UI utama (`app.py`), dua prototipe UI dan *compatibility shim*.
+- `models/`, `mappings/`, `evaluation/`: checkpoint, peta karakter/label, dan data evaluasi tersimpan.
+- `notebooks/`: sepuluh notebook penelitian asli, tidak dijalankan ulang saat migrasi.
+- `tests/`: pengujian Python; `scripts/browser_acceptance.py`: pengujian Chromium.
+- `docs/`: catatan migrasi, keterulangan penelitian, dan prosedur penerimaan UI.
+
+## Ketentuan ilmiah
+
+Metrik pada `evaluation/comparison/` berasal dari eksperimen terdahulu. CI dan uji browser **tidak menghasilkan ulang accuracy, DER, maupun WER**. Prediksi berharakat merupakan keluaran model yang perlu ditinjau kembali oleh pengguna; batas generalisasi pada teks selain Kitab *Fathul Qorib* belum diukur di repositori ini.

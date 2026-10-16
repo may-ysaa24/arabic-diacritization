@@ -16,3 +16,6 @@ venv/
 data/raw/
 data/processed/
 results/tmp/
+
+# Browser acceptance screenshots and server logs
+results/browser-acceptance/

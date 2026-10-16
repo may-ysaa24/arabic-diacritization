@@ -1,0 +1,73 @@
+{
+  "status": "passed",
+  "evaluation_protocol": {
+    "test_set_used_for_training": false,
+    "model_selection_used_test_set": false,
+    "same_test_set_for_both_models": true,
+    "same_architecture": true,
+    "same_vocabulary_mapping": true,
+    "same_label_mapping": true,
+    "gradient_disabled": true,
+    "crf_viterbi_decoding": true
+  },
+  "test_set": {
+    "pages": 33,
+    "sequences": 106,
+    "characters": 26196,
+    "arabic_letters": 19958,
+    "arabic_words": 4697,
+    "vocabulary_size": 55,
+    "number_of_labels": 15,
+    "unknown_characters": {}
+  },
+  "baseline": {
+    "training_source": "Fathul Qorib",
+    "checkpoint_epoch": 78,
+    "validation_loss": 0.19209198289504262,
+    "test_loss": 0.18480497078734293,
+    "accuracy_percent": 93.94564055581004,
+    "arabic_accuracy_percent": 92.05331195510573,
+    "der_percent": 7.946688044894278,
+    "wer_percent": 24.121779859484775,
+    "exact_match_percent": 2.8301886792452833,
+    "macro_f1_percent": 71.61677510382586
+  },
+  "fine_tuned": {
+    "training_source": "Tashkeela -> Fathul Qorib",
+    "pretrained_epoch": 62,
+    "checkpoint_epoch": 46,
+    "validation_loss": 0.14247237725212508,
+    "test_loss": 0.1398417596123768,
+    "accuracy_percent": 95.19392273629562,
+    "arabic_accuracy_percent": 93.70177372482212,
+    "der_percent": 6.298226275177873,
+    "wer_percent": 19.970193740685545,
+    "exact_match_percent": 3.7735849056603774,
+    "macro_f1_percent": 80.43045821739234
+  },
+  "improvement": {
+    "accuracy_gain_percentage_points": 1.2482821804855746,
+    "arabic_accuracy_gain_percentage_points": 1.6484617697163912,
+    "der_reduction_percentage_points": 1.6484617697164046,
+    "der_relative_reduction_percent": 20.744010088272386,
+    "wer_reduction_percentage_points": 4.15158611879923,
+    "wer_relative_reduction_percent": 17.2109443954104,
+    "test_loss_relative_reduction_percent": 24.330087542237045,
+    "exact_match_gain_percentage_points": 0.9433962264150941,
+    "macro_f1_gain_percentage_points": 8.813683113566483,
+    "character_errors_reduced": 327,
+    "arabic_errors_reduced": 329,
+    "word_errors_reduced": 195
+  },
+  "label_analysis": {
+    "labels_total": 15,
+    "labels_improved": 13,
+    "labels_declined": 1,
+    "labels_unchanged": 1
+  },
+  "sequence_analysis": {
+    "sequences_improved": 66,
+    "sequences_declined": 22,
+    "sequences_unchanged": 18
+  }
+}

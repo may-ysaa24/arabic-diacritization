@@ -1,0 +1,9 @@
+# Research / OCR notebooks only
+-r requirements.txt
+ipython
+jupyterlab
+matplotlib
+numpy
+PyMuPDF
+requests
+tqdm

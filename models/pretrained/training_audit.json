@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "best_model_loadable": true,
+  "validation_loss_verified": true,
+  "fathul_qorib_used": false,
+  "test_data_used": false,
+  "best_epoch": 62,
+  "best_validation_loss": 0.16843955593228602
+}
