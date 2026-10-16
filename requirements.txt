@@ -1,0 +1,5 @@
+# Python 3.12 target
+streamlit==1.63.0
+pandas==2.2.3
+pytorch-crf==0.7.2
+torch>=2.2,<3.0

@@ -1,0 +1,56 @@
+{
+  "test_set": {
+    "pages": 33,
+    "sequences": 106,
+    "characters": 26196,
+    "arabic_letters": 19958,
+    "words": 4697
+  },
+  "baseline": {
+    "model": "Baseline",
+    "test_loss": 0.18480497078734293,
+    "accuracy_percent": 93.94564055581004,
+    "arabic_accuracy_percent": 92.05331195510573,
+    "der_percent": 7.946688044894278,
+    "wer_percent": 24.121779859484775,
+    "exact_match_percent": 2.8301886792452833,
+    "total_characters": 26196,
+    "correct_characters": 24610,
+    "total_arabic_letters": 19958,
+    "arabic_label_errors": 1586,
+    "total_words": 4697,
+    "incorrect_words": 1133,
+    "total_sequences": 106,
+    "exact_sequences": 3
+  },
+  "fine_tuned": {
+    "model": "Fine-tuned",
+    "test_loss": 0.1398417596123768,
+    "accuracy_percent": 95.19392273629562,
+    "arabic_accuracy_percent": 93.70177372482212,
+    "der_percent": 6.298226275177873,
+    "wer_percent": 19.970193740685545,
+    "exact_match_percent": 3.7735849056603774,
+    "total_characters": 26196,
+    "correct_characters": 24937,
+    "total_arabic_letters": 19958,
+    "arabic_label_errors": 1257,
+    "total_words": 4697,
+    "incorrect_words": 938,
+    "total_sequences": 106,
+    "exact_sequences": 4
+  },
+  "improvement": {
+    "accuracy_gain_percentage_points": 1.2482821804855746,
+    "arabic_accuracy_gain_percentage_points": 1.6484617697163912,
+    "der_reduction_percentage_points": 1.6484617697164046,
+    "der_relative_reduction_percent": 20.744010088272386,
+    "wer_reduction_percentage_points": 4.15158611879923,
+    "wer_relative_reduction_percent": 17.2109443954104,
+    "test_loss_relative_reduction_percent": 24.330087542237045,
+    "exact_match_gain_percentage_points": 0.9433962264150941,
+    "character_errors_reduced": 327,
+    "arabic_errors_reduced": 329,
+    "word_errors_reduced": 195
+  }
+}

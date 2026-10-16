@@ -1,29 +1,38 @@
 # Arabic Diacritization with BiLSTM–CRF
 
-Research software for automatic Arabic diacritization of *Fathul Qorib* text using a Bidirectional Long Short-Term Memory (BiLSTM) model and Conditional Random Field (CRF).
+Proyek skripsi **Diakritisasi Otomatis Teks Arab Gundul pada Kitab Fathul Qorib Menggunakan Model Bidirectional Long Short-Term Memory (BiLSTM) dan Conditional Random Field (CRF)**.
 
-> **Status:** Repository initialization. Original research code, trained checkpoints, and evaluation artifacts have **not** yet been migrated or validated here.
+## Status migrasi
 
-## Repository organization
+**Dalam pengembangan, belum siap sebagai aplikasi inferensi lengkap.** Kode UI dan backend rujukan, mapping, konfigurasi, dan metrik historis telah disusun pada branch migrasi. Checkpoint `.pt` harus dipindahkan dan diverifikasi sebelum hasil inferensi dapat diuji. Notebook training asli dan dataset mentah belum dipindahkan.
 
-- `src/arabic_diacritization/`: reusable Python modules (to be migrated and verified).
-- `streamlit_app/`: user interface (to be migrated and verified).
-- `configs/`: experiment configuration.
-- `scripts/`: controlled training, evaluation, and inference entry points.
-- `tests/`: regression and functionality tests.
-- `docs/`: architecture, migration, and reproducibility notes.
-- `data/`: documentation and local data placement; do not commit restricted datasets.
-- `models/`: model artifact documentation; checkpoints will only be migrated after verification.
-- `results/`: experiment outputs and published comparisons.
-- `notebooks/`: research notebooks (to be migrated separately).
+**Sumber kode** tetap tersimpan pada repositori privat `may-ysaa24/diakritisasi-arab`. Penelitian menggunakan dua jalur model: baseline di Fathul Qorib, serta model pretrain Tashkeela lalu fine-tune Fathul Qorib.
 
-## Migration policy
+## Jalankan di VS Code (setelah checkpoint tersedia)
 
-The existing private repository [`may-ysaa24/diakritisasi-arab`](https://github.com/may-ysaa24/diakritisasi-arab) is retained untouched as the reference implementation. Refactoring must preserve preprocessing semantics, model architecture, label mappings, and checkpoint compatibility. Numerical equivalence will be claimed only after regression tests pass. Do not retrain merely to reorganize files.
+```powershell
+git clone https://github.com/may-ysaa24/arabic-diacritization.git
+cd arabic-diacritization
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install -e . -r requirements-dev.txt
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\python.exe -m streamlit run streamlit_app/app.py
+```
 
-## Next steps
+## Arsitektur kode
 
-1. Audit source interfaces and the checkpoint dependencies.
-2. Port modules and artifacts through a reviewable migration commit.
-3. Compare reference and migrated inference on identical input.
-4. Validate Streamlit startup and CI before marking the migration complete.
+- `src/arabic_diacritization/_reference_engine.py`: backend penelitian yang dipertahankan untuk uji kesetaraan. Perubahan hanya pada penentuan akar direktori paket.
+- `src/arabic_diacritization/model.py`: antarmuka kelas BiLSTM–CRF.
+- `src/arabic_diacritization/preprocessing.py`: antarmuka pembersihan dan validasi teks.
+- `src/arabic_diacritization/inference.py`: antarmuka prediksi dan rekonstruksi harakat.
+- `src/arabic_diacritization/file_processing.py`: antarmuka unggahan TXT/CSV.
+- `src/arabic_diacritization/evaluation.py`: pembacaan metrik yang tersimpan.
+- `streamlit_app/`: aplikasi, desain alternatif, dan shim kompatibilitas lama.
+- `models/`, `mappings/`, `evaluation/`: konfigurasi dan keluaran penelitian dari repositori referensi.
+- `tests/`: pengujian fungsi, sumber artefak, dan integrasi. Pengujian checkpoint dilewati secara eksplisit jika file belum tersedia.
+
+Implementasi model belum dipisahkan sepenuhnya dari engine referensi; modul di atas pada tahap ini adalah *public API wrappers* demi migrasi bertahap tanpa perubahan algoritma.
+
+## Batas hasil
+
+Metrik dalam `evaluation/comparison/` adalah hasil tersimpan dari penelitian sebelumnya, **bukan** hasil evaluasi ulang migrasi. Jangan mengklaim keluaran identik atau model siap produksi sebelum perbandingan checkpoint dan pengujian end-to-end selesai. Dataset mentah dan OCR tetap pada Drive terkontrol sampai perizinan diperiksa.

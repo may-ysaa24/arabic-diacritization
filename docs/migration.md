@@ -1,22 +1,26 @@
-# Migration and verification
+# Migration plan and verification ledger
 
 ## Source of truth
 
-Existing private GitHub repository: `may-ysaa24/diakritisasi-arab`.
+Original code and artifact source: private GitHub `may-ysaa24/diakritisasi-arab` and authorized Google Drive folder `BiLSTM-CRF`.
 
-## Guardrails
+## Status
 
-- Preserve original code and artifacts in the source repository.
-- Do not edit trained weight tensors, label dictionaries, or historical experiment results.
-- Introduce the Python package in small, reviewable steps.
-- Establish input-output regression tests against reference inference.
-- Confirm Streamlit functionality and GitHub Actions success before completion.
+- [x] Initialize dedicated professional repository.
+- [x] Create safe migration branch.
+- [x] Copy original Streamlit UI and historical mapping/configuration/evaluation artifacts.
+- [x] Preserve original backend implementation, changing only its project-root derivation after placing it inside `src/`.
+- [x] Add public package entry points and compatibility import for existing UI.
+- [ ] Migrate and verify fine-tuned model checkpoint (`best_finetuned_model.pt`).
+- [ ] Migrate other checkpoints and research notebooks.
+- [ ] Test actual inference on the new checkpoint and compare outputs with the original repository.
+- [ ] Extract implementation from `_reference_engine.py` into independent modules after regression tests.
+- [ ] Verify Streamlit manual, TXT, CSV, and download workflows interactively.
+- [ ] Merge reviewed changes to `main`.
 
-## Progress
+## Verification constraints
 
-- [x] Repository scaffold created.
-- [ ] Reference implementation audited.
-- [ ] Model/preprocessing/inference modules migrated.
-- [ ] Existing checkpoints and mappings validated.
-- [ ] Streamlit migrated and verified.
-- [ ] Equivalence and integration tests passed.
+1. Do not change existing trained weights, mappings, experiment figures, or scientific conclusions.
+2. Preserve architecture and existing prediction/output contracts.
+3. A passing package smoke test does not prove inference equivalence.
+4. No assertion of complete migration until missing artifacts are present and functional tests pass.
