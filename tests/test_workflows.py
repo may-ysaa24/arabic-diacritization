@@ -93,3 +93,27 @@ def test_streamlit_app_initial_render():
     from streamlit.testing.v1 import AppTest
     app = AppTest.from_file(str(ROOT / "streamlit_app" / "app.py"), default_timeout=45).run()
     assert not app.exception, [str(e.message) for e in app.exception]
+
+
+def test_backend_reference_only_differs_by_project_root():
+    source = (ROOT / "src/arabic_diacritization/_reference_engine.py").read_text(encoding="utf-8")
+    replacement = "DEFAULT_PROJECT_ROOT = (\\n    Path(__file__).resolve().parents[2]\\n)"
+    original_block = "DEFAULT_PROJECT_ROOT = (\\n    APP_DIR.parent\\n)"
+    assert source.count(replacement) == 1
+    restored = source.replace(replacement, original_block).encode("utf-8")
+    old_sha = hashlib.sha1(f"blob {len(restored)}".encode() + bytes([0]) + restored).hexdigest()
+    assert old_sha == "9638075c6a1ed6cbe654211a261deef006e8e751"
+
+
+def test_streamlit_manual_navigation_and_prediction():
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "streamlit_app" / "app.py"), default_timeout=45).run()
+    app.radio(key="page").set_value("Diakritisasi").run()
+    assert not app.exception, [str(e.message) for e in app.exception]
+    app.text_area(key="_manual_input").input("الحمد لله رب العالمين").run()
+    app.button(key="process_manual").click().run()
+    assert not app.exception, [str(e.message) for e in app.exception]
+    result = app.session_state["manual_result"]
+    assert result and result["success"], result
+    assert engine.remove_arabic_diacritics(result["prediction"]) == result["clean_text"]
