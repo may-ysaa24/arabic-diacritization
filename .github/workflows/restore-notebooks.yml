@@ -1,0 +1,58 @@
+name: Restore verified training notebooks
+
+on:
+  push:
+    branches: [migration/reference-code-and-artifacts]
+    paths:
+      - "notebooks/_migration_chunks/**"
+      - ".github/workflows/restore-notebooks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Restore and validate exact original notebooks
+        run: |
+          python - <<'PY'
+          import base64
+          import hashlib
+          import json
+          from pathlib import Path
+
+          specs = {
+              "02": ("02_train_baseline.ipynb", 17, 1941401, "8781f0290b44bcfeaa03a6dc5363307eeb5c74fa"),
+              "03": ("03_pretrain_tashkeela.ipynb", 18, 2055608, "8abb0a4f715341160688628648d0bfad9260ae93"),
+              "04": ("04_finetune_fathul_qorib.ipynb", 14, 1604472, "38976b7486ae2ef1168e81ab6ed924bc2f1324c5"),
+          }
+          for prefix, (filename, count, expected_len, expected_git_sha) in specs.items():
+              folder = Path("notebooks/_migration_chunks") / prefix
+              pieces = sorted(folder.glob("*.b64"))
+              assert [p.name for p in pieces] == [f"{i:03}.b64" for i in range(count)]
+              raw = base64.b64decode("".join(p.read_text(encoding="utf-8") for p in pieces), validate=True)
+              assert len(raw) == expected_len, (filename, len(raw), expected_len)
+              git_sha = hashlib.sha1(f"blob {len(raw)}".encode() + bytes([0]) + raw).hexdigest()
+              assert git_sha == expected_git_sha, (filename, git_sha, expected_git_sha)
+              notebook = json.loads(raw.decode("utf-8"))
+              assert notebook.get("nbformat") == 4
+              assert isinstance(notebook.get("cells"), list)
+              target = Path("notebooks") / filename
+              target.write_bytes(raw)
+              print(f"{filename}: verified, {len(notebook['cells'])} cells, {len(raw)} bytes")
+          PY
+      - name: Commit original notebooks and remove migration chunks
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -r notebooks/_migration_chunks
+          git add notebooks/02_train_baseline.ipynb notebooks/03_pretrain_tashkeela.ipynb notebooks/04_finetune_fathul_qorib.ipynb
+          git commit -m "docs: restore hash-verified training notebooks"
+          git push origin HEAD:migration/reference-code-and-artifacts
