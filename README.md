@@ -4,7 +4,7 @@ Proyek skripsi **Diakritisasi Otomatis Teks Arab Gundul pada Kitab Fathul Qorib 
 
 ## Status migrasi
 
-**Dalam pengembangan, belum dinyatakan selesai.** Backend rujukan, UI, mapping, konfigurasi, metrik historis, dan checkpoint *fine-tuned* sudah disimpan pada branch migrasi. SHA-256 checkpoint sudah cocok dengan sumber dan pengujian inferensi dasar berhasil. Notebook training asli, checkpoint baseline/pretrained, dan dataset mentah belum dipindahkan; interaksi UI manual/TXT/CSV belum diuji penuh.
+**Dalam pengembangan, belum dinyatakan selesai.** Backend rujukan, UI, mapping, konfigurasi, metrik historis, dan checkpoint *fine-tuned* sudah disimpan pada branch migrasi. SHA-256 checkpoint sudah cocok dengan sumber dan pengujian inferensi dasar berhasil. Seluruh 10 notebook asli dan tiga checkpoint terpilih sudah dipindahkan dengan hash identik. Dataset mentah tetap berada di Drive. Pengujian browser Streamlit secara interaktif dan evaluasi ulang penelitian belum dilakukan.
 
 **Sumber kode** tetap tersimpan pada repositori privat `may-ysaa24/diakritisasi-arab`. Penelitian menggunakan dua jalur model: baseline di Fathul Qorib, serta model pretrain Tashkeela lalu fine-tune Fathul Qorib.
 
@@ -29,7 +29,7 @@ py -3.12 -m venv .venv
 - `src/arabic_diacritization/file_processing.py`: antarmuka unggahan TXT/CSV.
 - `src/arabic_diacritization/evaluation.py`: pembacaan metrik yang tersimpan.
 - `streamlit_app/`: aplikasi, desain alternatif, dan shim kompatibilitas lama.
-- `models/`, `mappings/`, `evaluation/`: konfigurasi dan keluaran penelitian dari repositori referensi.
+- `models/`, `mappings/`, `evaluation/`: tiga checkpoint asli, mapping, konfigurasi, dan keluaran penelitian dari repositori referensi.
 - `tests/`: pengujian fungsi, sumber artefak, dan integrasi. Pengujian checkpoint dilewati secara eksplisit jika file belum tersedia.
 
 Implementasi model belum dipisahkan sepenuhnya dari engine referensi; modul di atas pada tahap ini adalah *public API wrappers* demi migrasi bertahap tanpa perubahan algoritma.
