@@ -433,6 +433,11 @@ def render_home():
         '<h3>Periksa hasil prediksi</h3><p>Tinjau teks berharakat, kemudian salin atau unduh hasilnya.</p></div>'
         '</div>'
     )
+    st.html('<div class="evidence-strip">'
+        '<div class="evidence-card"><div class="evidence-number">BiLSTM–CRF</div><div class="evidence-label">Model berbasiskan urutan karakter</div></div>'
+        '<div class="evidence-card"><div class="evidence-number">TXT / CSV</div><div class="evidence-label">Input dan unduhan dokumen</div></div>'
+        '<div class="evidence-card"><div class="evidence-number">RTL</div><div class="evidence-label">Ruang baca teks Arab yang nyaman</div></div>'
+        '</div>')
     st.caption("Hasil diakritisasi merupakan prediksi model dan masih perlu diperiksa kembali oleh pengguna.")
 
 
@@ -448,14 +453,21 @@ def render_manual():
                     "Teks Arab", key="_manual_input", height=250,
                     placeholder=EXAMPLES[0], on_change=manual_changed,
                 )
-            st.caption("Teks berharakat juga dapat dimasukkan; harakat lama akan diprediksi ulang.")
+            st.caption("Teks Arab dibaca dari kanan ke kiri. Harakat pada masukan akan dihapus dan diprediksi ulang.")
+            st.caption(f"Panjang masukan: {len(text):,} karakter".replace(",", "."))
             with st.container(horizontal=True):
                 process = st.button("Proses Diakritisasi", key="process_manual", type="primary",
                                     disabled=not READY, icon=":material/auto_stories:")
                 st.button("Bersihkan", key="reset_manual", on_click=reset_manual)
             if process:
                 st.session_state.manual_input = text
-                st.session_state.manual_result = processing_call(engine.predict_long_text, text)
+                if not text.strip():
+                    st.session_state.manual_result = {
+                        "success": False,
+                        "message": "Masukkan teks Arab terlebih dahulu sebelum memproses.",
+                    }
+                else:
+                    st.session_state.manual_result = processing_call(engine.predict_long_text, text)
                 st.session_state.manual_result_input = text
             with st.expander("Panduan masukan"):
                 st.write("Gunakan teks Arab tanpa campuran huruf Latin. "
@@ -505,7 +517,7 @@ def render_file_result(result):
 
 
 def render_file():
-    st.write("Unggah teks untuk diproses sebagai berkas.")
+    st.write("Unggah teks Arab sebagai berkas, periksa isinya, lalu jalankan prediksi.")
     st.caption("Format TXT atau CSV, maksimal 5 MB. Baris kosong dan non-Arab dipertahankan.")
     widget_key = f"_upload_{st.session_state.uploader_generation}"
     st.file_uploader("Pilih berkas TXT atau CSV", type=["txt", "csv"], key=widget_key,
@@ -546,7 +558,7 @@ def render_file():
             selected_column = st.selectbox("Pilih kolom teks Arab", options,
                                             key="_csv_column", on_change=column_changed)
             if names:
-                st.caption("Kolom terdeteksi: " + ", ".join(map(str, names)))
+                st.caption("Kolom berpotensi mengandung teks Arab: " + ", ".join(map(str, names)))
         except Exception as error:
             st.error(f"Berkas tidak dapat dibaca: {error}")
             return
@@ -644,7 +656,7 @@ def render_about():
             ]), hide_index=True, width="stretch")
     st.divider()
     st.subheader("Hasil evaluasi pada data uji", anchor=False)
-    st.caption("Kitab Fathul Qorib · Hasil evaluasi penelitian, bukan tingkat keyakinan setiap prediksi.")
+    st.caption("Kitab Fathul Qorib · Metrik evaluasi tersimpan, bukan tingkat keyakinan untuk setiap prediksi.")
     fine = metrics_data.get("fine_tuned") if isinstance(metrics_data, dict) else None
     if not isinstance(fine, dict):
         st.info("Metrik evaluasi belum tersedia.")
@@ -653,8 +665,9 @@ def render_about():
         for col, label, key in zip(columns, ["Accuracy", "DER", "WER"],
                                    ["accuracy_percent", "der_percent", "wer_percent"]):
             col.metric(label, format_percent(fine.get(key)))
-        st.caption("Accuracy: ketepatan label pada karakter valid. DER: kesalahan label pada huruf Arab. "
-                   "WER: persentase kata yang berbeda dari referensi.")
+        st.caption("Accuracy: persentase karakter yang benar, termasuk spasi dan tanda baca. "
+                   "DER: kesalahan diakritik pada huruf Arab. "
+                   "WER: kata Arab dengan sedikitnya satu kesalahan.")
         baseline = metrics_data.get("baseline")
         if isinstance(baseline, dict):
             with st.expander("Perbandingan baseline dan fine-tuned"):
