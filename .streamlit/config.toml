@@ -1,0 +1,31 @@
+# Canonical configuration for the official startup from the repository root.
+# Keep options equal to streamlit_app/.streamlit/config.toml (compatibility cwd).
+[theme]
+base = "light"
+primaryColor = "#009344"
+backgroundColor = "#FCFDFC"
+secondaryBackgroundColor = "#F0F6F1"
+textColor = "#064937"
+font = "sans serif"
+linkColor = "#006F34"
+borderColor = "#D9E6DE"
+dataframeHeaderBackgroundColor = "#F0F6F1"
+# Informasi dan status sukses mengikuti tema; peringatan/error tetap semantik.
+blueColor = "#006F34"
+blueBackgroundColor = "#F0F6F1"
+blueTextColor = "#064937"
+greenColor = "#009344"
+greenBackgroundColor = "#F0F6F1"
+greenTextColor = "#006F34"
+
+[theme.sidebar]
+backgroundColor = "#F0F6F1"
+secondaryBackgroundColor = "#FCFDFC"
+textColor = "#064937"
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# Native exports bypass the safe CSV serializer used by the application.
+disableDataExport = true

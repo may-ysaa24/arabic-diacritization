@@ -9,7 +9,17 @@ venv/
 .env.*
 !.env.example
 .ipynb_checkpoints/
-.streamlit/secrets.toml
+# Local secrets at any depth, including streamlit_app/.streamlit/.
+secrets.toml
+secrets.local.*
+*.egg-info/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.playwright/
+playwright-report/
+test-results/
 .DS_Store
 *.log
 # Keep datasets out of version control until their license/privacy is reviewed.
