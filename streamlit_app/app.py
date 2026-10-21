@@ -7,7 +7,6 @@ Perubahan tampilan tidak mengganti hasil atau aturan inferensi backend.
 
 from base64 import b64encode
 from copy import deepcopy
-from hashlib import sha256
 from html import escape
 from importlib import import_module
 from io import BytesIO
@@ -21,6 +20,7 @@ import pandas as pd
 import streamlit as st
 
 from file_safety import spreadsheet_safe_csv, txt_control_error
+import upload_queue as queue
 
 
 # Streamlit sends frontend configuration before executing this script. Bootstrap
@@ -364,6 +364,8 @@ for state_key, default in {
     "upload_snapshot": None, "upload_validation_cache": None,
     "file_result": None, "file_result_signature": None, "file_processing": None,
     "csv_column": None, "example_results": {}, "uploader_generation": 0,
+    "upload_files": {}, "active_upload_id": None, "upload_messages": [],
+    "queue_zip": None,
 }.items():
     if state_key not in st.session_state:
         st.session_state[state_key] = default
@@ -456,6 +458,10 @@ def reset_manual():
 
 
 def reset_file():
+    if st.session_state.active_upload_id in st.session_state.upload_files:
+        queue.remove_upload(st.session_state, st.session_state.active_upload_id)
+        st.session_state.queue_zip = None
+        return
     st.session_state.upload_snapshot = None
     st.session_state.upload_validation_cache = None
     st.session_state.file_result = None
@@ -466,30 +472,34 @@ def reset_file():
 
 
 def upload_changed(widget_key):
-    uploaded = st.session_state.get(widget_key)
-    st.session_state.file_result = None
-    st.session_state.file_result_signature = None
-    st.session_state.file_processing = None
-    st.session_state.csv_column = None
-    if uploaded is None:
-        st.session_state.upload_snapshot = None
-        st.session_state.upload_validation_cache = None
+    if widget_key != f"_upload_{st.session_state.uploader_generation}":
         return
-    data = uploaded.getvalue()
-    # Ukuran file sudah dibatasi oleh backend; hindari menahan file terlalu besar di state UI.
-    limit = int(getattr(engine, "MAX_FILE_SIZE", 5 * 1024 * 1024))
-    st.session_state.upload_snapshot = {
-        "name": uploaded.name, "size": len(data),
-        "data": data if len(data) <= limit else None,
-        "digest": sha256(data).hexdigest(),
-    }
+    uploaded = st.session_state.get(widget_key) or []
+    queue.add_uploads(st.session_state, uploaded if isinstance(uploaded, list) else [uploaded])
+    st.session_state.queue_zip = None
+    # A fresh native widget releases the submitted batch's buffers. Removing a
+    # native upload never implicitly deletes a stored result; use explicit delete.
+    st.session_state.uploader_generation += 1
 
 
-def column_changed(upload_identity):
+def active_file_changed():
+    file_id = st.session_state.get("_active_file")
+    if file_id in st.session_state.upload_files:
+        queue.persist_active(st.session_state)
+        queue.load_active(st.session_state, file_id)
+
+
+def reset_all_files():
+    queue.clear_uploads(st.session_state)
+    st.session_state.queue_zip = None
+
+
+def column_changed(upload_identity, file_id=None):
     snapshot = st.session_state.upload_snapshot
     # An upload/remove and an old selectbox event can share one rerun. Ignore
     # callbacks from the previous file; let Streamlit clean up absent widgets.
-    if snapshot is None or (snapshot["name"], snapshot["digest"]) != upload_identity:
+    if (snapshot is None or (snapshot["name"], snapshot["digest"]) != upload_identity
+            or file_id != st.session_state.active_upload_id):
         return
     column = st.session_state.get("_csv_column")
     if column is None:
@@ -498,6 +508,11 @@ def column_changed(upload_identity):
     st.session_state.file_result = None
     st.session_state.file_result_signature = None
     st.session_state.file_processing = None
+    entry = st.session_state.upload_files.get(file_id)
+    if entry:
+        entry["export_bytes"] = None
+    st.session_state.queue_zip = None
+    queue.persist_active(st.session_state)
 
 
 def uploaded_copy(snapshot):
@@ -979,14 +994,24 @@ def read_upload_validation(snapshot):
     if engine is None:
         return {"success": False, "message": "Backend belum tersedia untuk memeriksa berkas."}
     try:
+        if suffix == ".csv":
+            decoded = engine.decode_text_bytes(snapshot["data"])
+            if not decoded.get("success"):
+                return decoded
+            error = queue.text_capacity_error(decoded["text"], csv_input=True)
+            if error:
+                return {"success": False, "message": error}
         preview = (engine.read_csv_file(uploaded_copy(snapshot)) if suffix == ".csv"
                    else engine.decode_text_bytes(snapshot["data"]))
         if preview.get("success") and suffix == ".csv" and not len(preview["dataframe"].columns):
             return {"success": False, "message": "CSV tidak memiliki kolom yang dapat dipilih."}
         if preview.get("success") and suffix == ".csv":
+            frame = preview["dataframe"]
+            if len(frame) > queue.MAX_ROWS or len(frame.columns) > queue.MAX_COLUMNS or frame.size > queue.MAX_CELLS:
+                return {"success": False, "message": "CSV melampaui batas 10.000 baris, 100 kolom, atau 100.000 sel per berkas."}
             preview["arabic_columns"] = engine.detect_arabic_columns(preview["dataframe"])
         if preview.get("success") and suffix == ".txt":
-            error = txt_control_error(preview["text"])
+            error = txt_control_error(preview["text"]) or queue.text_capacity_error(preview["text"])
             if error:
                 return {"success": False, "message": error, "encoding": preview.get("encoding")}
         return preview
@@ -995,7 +1020,7 @@ def read_upload_validation(snapshot):
 
 
 def inspect_upload(snapshot):
-    """Keep one private parse/validation per session, independent of widget state.
+    """Keep one private parse/validation for the active file, independent of widgets.
 
     Readers have fixed parsing options. Include their policy version and suffix
     alongside the content digest, so a rename can reuse parsing but a different
@@ -1012,6 +1037,133 @@ def inspect_upload(snapshot):
         cached = {"key": key, "validation": read_upload_validation(snapshot)}
         st.session_state.upload_validation_cache = cached
     return deepcopy(cached["validation"])
+
+
+def inspect_queue():
+    """Validate each new entry once, keeping all parses private to this session."""
+    queue.persist_active(st.session_state)
+    for entry in st.session_state.upload_files.values():
+        cache = entry["upload_validation_cache"]
+        if cache is not None and cache.get("backend_available") == (engine is not None):
+            continue
+        snapshot = entry["upload_snapshot"]
+        validation = read_upload_validation(snapshot)
+        cache = {"key": (snapshot["digest"], snapshot["size"], Path(snapshot["name"]).suffix.lower(),
+                         "backend-readers-v1/txt-controls-v1/5MiB", engine is not None),
+                 "validation": validation, "backend_available": engine is not None}
+        if queue.retained_bytes(st.session_state.upload_files) + queue.retained_bytes(cache) > queue.MAX_RETAINED_BYTES:
+            cache["validation"] = {"success": False, "message": "Batas memori sesi tercapai. Hapus berkas lain lalu unggah kembali."}
+        entry["upload_validation_cache"] = cache
+        if cache["validation"].get("success") and Path(snapshot["name"]).suffix.lower() == ".csv":
+            frame = cache["validation"]["dataframe"]
+            names = [item["column"] for item in cache["validation"]["arabic_columns"]]
+            options = names + [col for col in frame.columns if col not in names]
+            if entry["csv_column"] not in options:
+                entry["csv_column"] = "teks_gundul" if "teks_gundul" in options else options[0]
+    if st.session_state.active_upload_id in st.session_state.upload_files:
+        queue.load_active(st.session_state, st.session_state.active_upload_id)
+
+
+def process_active_file(validation):
+    # Recheck on the server as well as disabling the button in the UI.
+    if not READY or not validation.get("success"):
+        return
+    snapshot = st.session_state.upload_snapshot
+    column = st.session_state.csv_column if Path(snapshot["name"]).suffix.lower() == ".csv" else None
+    entry = st.session_state.upload_files.get(st.session_state.active_upload_id)
+    st.session_state.queue_zip = None
+    if entry:
+        entry["export_bytes"] = None
+        entry["file_result"] = None
+    st.session_state.file_result = None
+    result = processing_call(engine.process_uploaded_file, uploaded_copy(snapshot),
+                             text_column=column, summary_key="file_processing")
+    try:
+        export = queue.result_export(result)
+    except Exception as error:
+        result = {"success": False, "message": f"Hasil tidak dapat diekspor: {error}"}
+        export = None
+        st.session_state.file_processing = None
+    if entry and result.get("success"):
+        candidate = {"file_result": result, "export_bytes": export}
+        other_exports = sum(len(e.get("export_bytes") or b"") for e in st.session_state.upload_files.values())
+        if (queue.retained_bytes(st.session_state.upload_files) + queue.retained_bytes(candidate) > queue.MAX_RETAINED_BYTES
+                or other_exports + len(export) > queue.MAX_EXPORT_BYTES - 1024 * 1024):
+            result = {"success": False, "message": "Hasil melampaui batas memori sesi/ekspor. Hapus hasil lain atau gunakan berkas lebih kecil; tidak ada teks yang dipotong."}
+            export = None
+            st.session_state.file_processing = None
+    st.session_state.file_result = result
+    st.session_state.file_result_signature = (snapshot["name"], snapshot["digest"], column)
+    queue.persist_active(st.session_state)
+    if entry:
+        entry["export_bytes"] = export
+
+
+def process_all_files():
+    """Sequential work, no shared active result, and no inference on rerenders."""
+    selected = st.session_state.active_upload_id
+    queue.persist_active(st.session_state)
+    for file_id, entry in list(st.session_state.upload_files.items()):
+        validation = (entry["upload_validation_cache"] or {}).get("validation", {})
+        if not validation.get("success") or (entry.get("file_result") or {}).get("success"):
+            continue
+        queue.load_active(st.session_state, file_id)
+        st.text(f"Memproses: {entry['upload_snapshot']['name']}")
+        try:
+            process_active_file(validation)
+        except Exception as error:
+            # Includes export failures after a successful backend call.
+            st.session_state.file_result = {"success": False, "message": f"Pemrosesan berkas gagal: {error}"}
+            st.session_state.file_processing = None
+            entry["export_bytes"] = None
+            queue.persist_active(st.session_state)
+    queue.load_active(st.session_state, selected)
+
+
+def render_queue_controls():
+    entries = st.session_state.upload_files
+    if not entries:
+        return
+    inspect_queue()
+    with st.container(horizontal=True):
+        process_all = st.button("Proses Semua", key="process_all_files", type="primary", disabled=not READY)
+        st.button("Hapus Semua", key="reset_all_files", on_click=reset_all_files, icon=":material/delete_sweep:")
+    if process_all and READY:
+        process_all_files()
+    rows = []
+    for entry in entries.values():
+        snapshot = entry["upload_snapshot"]
+        status, message = queue.entry_status(entry)
+        cache = (entry.get("upload_validation_cache") or {}).get("validation", {})
+        rows.append({"Nama": snapshot["name"], "Format": Path(snapshot["name"]).suffix.lstrip(".").upper(),
+                     "Ukuran (byte)": snapshot["size"], "Validitas": "Valid" if cache.get("success") else "Tidak valid",
+                     "Status": status, "Ringkasan": str((entry.get("file_result") or {}).get("status_summary") or message)})
+    # A native table cannot expose raw CSV downloads (export policy above).
+    with st.expander("Daftar berkas sesi", expanded=True):
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    st.session_state["_active_file"] = st.session_state.active_upload_id
+    ids = list(entries)
+    st.selectbox("Berkas untuk pratinjau, proses ulang, atau unduh", ids, key="_active_file",
+                 format_func=lambda file_id: f"{ids.index(file_id) + 1}. {entries[file_id]['upload_snapshot']['name']}",
+                 on_change=active_file_changed)
+
+
+def render_queue_zip():
+    entries = st.session_state.upload_files
+    if not entries:
+        return
+    if st.button("Siapkan ZIP", key="prepare_queue_zip"):
+        queue.persist_active(st.session_state)
+        try:
+            st.session_state.queue_zip = queue.build_zip(entries)
+        except Exception as error:
+            st.session_state.queue_zip = None
+            st.error(f"ZIP belum dapat disiapkan: {error}")
+    if st.session_state.queue_zip is not None:
+        st.download_button("Unduh Semua (ZIP)", st.session_state.queue_zip, file_name="hasil_diakritisasi_semua.zip",
+                           mime="application/zip", key="download_all_files", on_click="ignore")
+    else:
+        st.caption("Siapkan ZIP untuk mengunduh semua hasil tersimpan beserta ringkasan setiap berkas, termasuk berkas gagal atau belum diproses.")
 
 
 def file_information(snapshot, validation):
@@ -1039,15 +1191,17 @@ def render_file_result(result, filename):
         return
     file_processing_summary(result, filename)
     st.success(result["message"])
+    output_filename = (queue.safe_output_name(filename, result["input_type"], st.session_state.active_upload_id)
+                       if st.session_state.active_upload_id else result["output_filename"])
     if result["input_type"] == "txt":
         arabic(result["prediction"], result=True)
-        result_actions(result["prediction"], "file", filename=result["output_filename"], data=result["download_bytes"])
+        result_actions(result["prediction"], "file", filename=output_filename, data=result["download_bytes"])
     else:
         # Fit short results without growing beyond the existing scrollable area.
         table_height = min(320, 35 * (len(result["dataframe"]) + 1) + 3)
         st.dataframe(result["dataframe"], hide_index=True, width="stretch", height=table_height, row_height=35)
         with st.container(horizontal=True, key="file_result_actions"):
-            st.download_button("Unduh CSV", spreadsheet_safe_csv(result["dataframe"]), file_name=result["output_filename"],
+            st.download_button("Unduh CSV", spreadsheet_safe_csv(result["dataframe"]), file_name=output_filename,
                                mime="text/csv; charset=utf-8", key="download_file", icon=":material/download:",
                                on_click="ignore")
     if result["input_type"] == "csv":
@@ -1072,24 +1226,32 @@ def render_file_result(result, filename):
 
 
 def render_file():
-    scroll_request = None
+    scroll_request = st.session_state.pop("queue_scroll_request", None)
     with st.container(key="file_workspace"):
         with st.container(key="file_upload_card", border=True):
             card_heading("01", "UNGGAH TEKS ARAB")
             st.html('<p class="upload-help">Pilih berkas, periksa pratinjau, lalu proses diakritisasi. '
-                    'Format TXT atau CSV, maksimal 5 MB. Baris kosong, non-Arab, dan campuran tidak diprediksi; '
+                    'Format TXT atau CSV, maksimal 5 MiB per berkas, 20 berkas dan total masukan 20 MiB per sesi. '
+                    'Tambahkan berkas tanpa menghapus hasil sebelumnya. Baris kosong, non-Arab, dan campuran tidak diprediksi; '
                     'teks dapat dinormalisasi sesuai aturan sistem.</p>')
             widget_key = f"_upload_{st.session_state.uploader_generation}"
             st.file_uploader("Pilih berkas TXT atau CSV", type=["txt", "csv"], key=widget_key,
+                             accept_multiple_files=True,
                              max_upload_size=5, on_change=upload_changed, args=(widget_key,),
-                             help="Unggah berkas baru untuk mengganti berkas aktif. "
-                                  "Berkas aktif tetap tersimpan dalam sesi saat berpindah halaman.")
+                             help="Batch unggahan dipindahkan ke daftar sesi dan pemilih unggahan dikosongkan kembali. "
+                                  "Berkas dan hasil tetap tersimpan saat menambah unggahan atau berpindah halaman.")
+            st.caption("Batas pemrosesan per berkas: TXT 250.000 karakter/10.000 baris; CSV 1.000.000 karakter, "
+                       "10.000 baris, 100 kolom, 100.000 sel. Anggaran data sesi 128 MiB dan ekspor 32 MiB. "
+                       "Berkas yang melampaui batas ditolak tanpa pemotongan teks.")
+            for message in st.session_state.upload_messages:
+                st.warning(message)
+            render_queue_controls()
             snapshot = st.session_state.upload_snapshot
             validation = inspect_upload(snapshot)
             selected_column = None
             if snapshot is not None:
                 st.caption(f"Berkas aktif: {snapshot['name']} — tersimpan dalam sesi ini. "
-                           "Unggah berkas baru untuk mengganti, atau pilih Hapus Berkas untuk menghapusnya.")
+                           "Tambahkan unggahan untuk menyimpan berkas lain, atau pilih Hapus Berkas untuk menghapus yang aktif.")
                 file_information(snapshot, validation)
                 if not validation.get("success"):
                     st.error(validation["message"])
@@ -1102,7 +1264,7 @@ def render_file():
                         st.session_state.csv_column = "teks_gundul" if "teks_gundul" in options else options[0]
                     st.session_state["_csv_column"] = st.session_state.csv_column
                     selected_column = st.selectbox("Pilih Kolom Teks Arab", options, key="_csv_column", on_change=column_changed,
-                                                   args=((snapshot["name"], snapshot["digest"]),))
+                                                   args=((snapshot["name"], snapshot["digest"]), st.session_state.active_upload_id))
                     if names:
                         st.caption("Kandidat kolom teks Arab: " + ", ".join(map(str, names)))
                     with st.expander("Pratinjau CSV", expanded=True):
@@ -1120,17 +1282,17 @@ def render_file():
                 st.caption(validation["message"])
             signature = ((snapshot["name"], snapshot["digest"], selected_column) if snapshot else None)
             with st.container(horizontal=True, key="file_actions"):
-                process = st.button("Proses Diakritisasi", type="primary", key="process_file",
+                process = st.button("Proses Ulang Berkas" if st.session_state.file_result else "Proses Diakritisasi", type="primary", key="process_file",
                                     disabled=not (READY and validation.get("success")))
                 st.button("Hapus Berkas", key="reset_file", on_click=reset_file,
                           disabled=snapshot is None, icon=":material/delete_sweep:")
             if process and READY and validation.get("success"):
-                st.session_state.file_result = processing_call(
-                    engine.process_uploaded_file, uploaded_copy(snapshot), text_column=selected_column,
-                    summary_key="file_processing")
-                st.session_state.file_result_signature = signature
+                process_active_file(validation)
                 if st.session_state.file_result.get("success"):
                     scroll_request = uuid4().hex
+                if st.session_state.active_upload_id:
+                    st.session_state.queue_scroll_request = scroll_request
+                    st.rerun()
             if not READY:
                 st.info("Model belum siap; pemrosesan berkas dinonaktifkan.")
         with st.container(key="file_result_card", border=True):
@@ -1142,6 +1304,8 @@ def render_file():
                 empty_output("Pilih berkas TXT atau CSV yang valid, lalu jalankan Proses Diakritisasi.")
         if scroll_request:
             scroll_to_result("file", scroll_request)
+        queue.persist_active(st.session_state)
+        render_queue_zip()
 
 
 def render_diakritisasi():
