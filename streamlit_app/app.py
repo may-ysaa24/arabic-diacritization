@@ -1099,7 +1099,7 @@ def render_file():
                     names = [item["column"] for item in candidates]
                     options = names + [col for col in dataframe.columns if col not in names]
                     if st.session_state.csv_column not in options:
-                        st.session_state.csv_column = options[0]
+                        st.session_state.csv_column = "teks_gundul" if "teks_gundul" in options else options[0]
                     st.session_state["_csv_column"] = st.session_state.csv_column
                     selected_column = st.selectbox("Pilih Kolom Teks Arab", options, key="_csv_column", on_change=column_changed,
                                                    args=((snapshot["name"], snapshot["digest"]),))
