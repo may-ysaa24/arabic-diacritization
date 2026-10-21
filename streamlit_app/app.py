@@ -21,6 +21,8 @@ import streamlit as st
 
 from file_safety import spreadsheet_safe_csv, txt_control_error
 import upload_queue as queue
+import translation_reference as reference
+from translation_panel import render_reference_panel
 
 
 # Streamlit sends frontend configuration before executing this script. Bootstrap
@@ -1300,6 +1302,10 @@ def render_file():
             result = st.session_state.file_result
             if result and validation.get("success") and st.session_state.file_result_signature == signature:
                 render_file_result(result, snapshot["name"])
+                if (result.get("success") and result.get("input_type") == "csv"
+                        and reference.is_demo_csv(validation["dataframe"], selected_column)):
+                    render_reference_panel(snapshot["data"], validation["dataframe"], selected_column,
+                                           st.session_state.active_upload_id or snapshot["digest"])
             else:
                 empty_output("Pilih berkas TXT atau CSV yang valid, lalu jalankan Proses Diakritisasi.")
         if scroll_request:
