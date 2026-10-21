@@ -14,7 +14,7 @@ import time
 from urllib.request import urlopen
 from zipfile import ZipFile
 
-from playwright.sync_api import sync_playwright, expect
+from playwright.sync_api import sync_playwright, expect, TimeoutError as PlaywrightTimeoutError
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "test-results/multifile/browser"
@@ -33,17 +33,18 @@ def select(page, label, value):
     # only if that rerender closed the native popup before an option was chosen.
     option = page.get_by_role("option", name=value, exact=True)
     for attempt in range(3):
+        field.get_by_role("combobox").press("Escape")
         field.get_by_role("combobox").click()
         if label == "Pilih Kolom Teks Arab":
             (OUT / f"column_popup_{attempt}.txt").write_text(page.locator('body').aria_snapshot(), encoding="utf-8")
         try:
             expect(option).to_be_visible(timeout=3000)
+            option.click(timeout=3000)
+            expect(field.get_by_role("combobox")).to_have_value(value, timeout=3000)
             break
-        except AssertionError:
+        except (AssertionError, PlaywrightTimeoutError):
             if attempt == 2:
                 raise
-    option.click()
-    expect(field.get_by_role("combobox")).to_have_value(value)
     print(f"Selected {label}: {value}", flush=True)
 
 
@@ -89,6 +90,10 @@ def run(page, base_url):
     assert b"\t=1+1" in csv_before
     # Native widget was rotated after the first batch; adding doesn't replace it.
     picker.set_input_files([payload("later.txt", "رب العالمين".encode())])
+    # Wait for the upload callback, rather than observing the old CSV result
+    # while a newly selected file is still arriving at the server.
+    select(page, label, "4. later.txt")
+    select(page, label, "2. two.csv")
     expect(page.get_by_role("button", name="Proses Ulang Berkas", exact=True)).to_be_visible(timeout=60_000)
     assert download(page, card.get_by_role("button", name=re.compile(r"Unduh CSV$")), "two_after_add.csv") == csv_before
     page.get_by_role("button", name="Proses Semua", exact=True).click()

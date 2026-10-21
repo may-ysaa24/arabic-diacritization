@@ -1,7 +1,11 @@
 """Optional reference-only UI; never calls or imports the inference engine."""
+from hashlib import sha256
+
 import streamlit as st
 
 import translation_reference as reference
+
+THAHARAH_SOURCE_URL = 'https://www.terjemahankitab.com/2023/10/terjemah-kitab-fathul-qorib-bab_27.html?m=1'
 
 
 @st.fragment
@@ -15,7 +19,17 @@ def render_reference_panel(upload_data, dataframe, column, file_key):
                    'dan tidak disertakan dalam unduhan hasil diakritisasi.')
         units = reference.display_units(upload_data, dataframe, column)
         if not units:
-            st.info('Terjemahan belum tersedia')
+            st.info('Terjemahan belum tersedia dalam aplikasi')
+        # The pinned CSV identifies Thaharah even when renamed. Neither a file
+        # name nor a user-supplied title/URL can select another external source.
+        if (reference.is_demo_csv(dataframe, column)
+                and sha256(upload_data).hexdigest() == reference.CSV_SHA256):
+            st.caption('Referensi eksternal (situs sumber). Tautan ini bukan bukti penyimpanan '
+                       'atau verifikasi terjemahan dalam aplikasi.')
+            st.link_button('Baca Terjemahan di Sumber Referensi', THAHARAH_SOURCE_URL,
+                           key=f'translation_source_{file_key}', on_click='ignore',
+                           icon=':material/open_in_new:')
+        if not units:
             return
         st.caption('Hanya paragraf dengan pasangan, verifikasi, dan izin tampilan yang memenuhi syarat '
                    'ditampilkan. Segmen lainnya: Terjemahan belum tersedia.')

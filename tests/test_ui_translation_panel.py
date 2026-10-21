@@ -14,6 +14,7 @@ APP = Path(__file__).resolve().parents[1] / 'streamlit_app'
 sys.path.insert(0, str(APP))
 import inference_engine as backend
 import translation_reference as reference
+from translation_panel import THAHARAH_SOURCE_URL
 
 DEMO = ('id,chunk_id,page,judul_arab,teks_gundul\n'
         'FQDEMO_01_00001,TEST_CHUNK,24,الطهارة,الحمد لله\n').encode()
@@ -61,7 +62,7 @@ def test_panel_is_lazy_and_repeated_open_does_not_infer_or_change_exports():
         zip_before = app.session_state.queue_zip
         for _ in range(2):
             open_panel(app, file_id)
-            assert any(e.value == 'Terjemahan belum tersedia' for e in app.info)
+            assert any(e.value == 'Terjemahan belum tersedia dalam aplikasi' for e in app.info)
             open_panel(app, file_id, False)
         assert lookup.call_count == 2 and infer.call_count == 1
         assert app.session_state.file_result['download_bytes'] == before
@@ -128,3 +129,76 @@ def test_multifile_panel_stays_with_active_file_and_manual_txt_are_unchanged():
         app.button(key='reset_all_files').click().run()
         assert not app.session_state.upload_files
         assert not any(e.label == 'Lihat Terjemahan Referensi' for e in app.expander)
+
+
+def source_panel_app():
+    """Isolated real panel; no inference or backend invocation is needed."""
+    from io import BytesIO
+    import pandas as pd
+    import streamlit as st
+    from translation_panel import render_reference_panel
+    data = st.session_state['source_test_data']
+    frame = pd.read_csv(BytesIO(data), dtype=str, keep_default_na=False)
+    render_reference_panel(data, frame, st.session_state['source_test_column'], 'source_test')
+
+
+def source_app(data, column='teks_gundul'):
+    app = AppTest.from_function(source_panel_app, default_timeout=20)
+    app.session_state['source_test_data'] = data
+    app.session_state['source_test_column'] = column
+    return app.run()
+
+
+def thaharah_data():
+    path = APP.parent / 'data/demo_fathul_qorib_per_bab/CSV/01_Thaharah.csv'
+    if not path.exists(): pytest.skip('Private demo dataset unavailable')
+    return path.read_bytes()
+
+
+def assert_external_source(app):
+    assert not app.exception
+    links = app.get('link_button')
+    assert len(links) == 1
+    assert links[0].proto.label == 'Baca Terjemahan di Sumber Referensi'
+    assert links[0].proto.url == THAHARAH_SOURCE_URL
+    assert links[0].proto.ignore_rerun is True
+    assert any('Referensi eksternal' in e.value and 'bukan bukti' in e.value for e in app.caption)
+    assert any(e.value == 'Terjemahan belum tersedia dalam aplikasi' for e in app.info)
+
+
+def test_real_thaharah_link_is_available_with_actual_permission_gate_intact():
+    with patch.object(reference, 'display_units', wraps=reference.display_units) as lookup:
+        app = source_app(thaharah_data())
+        assert not app.get('link_button') and lookup.call_count == 0
+        open_panel(app, 'source_test')
+        assert_external_source(app)
+        # Reopening calls the permission-gated reader; never promotes local text.
+        assert lookup.call_count == 1
+        assert not app.text
+        open_panel(app, 'source_test', False)
+        assert not app.get('link_button')
+
+
+@pytest.mark.parametrize('data', [
+    DEMO.replace(b'FQDEMO_01_', b'FQDEMO_02_'),  # Another kitab cannot inherit the source.
+    DEMO,  # Forged Thaharah IDs alone cannot select a reference URL.
+    b'judul_arab,teks_gundul\nThaharah,TEST_ONLY\n',
+])
+def test_no_source_link_for_other_or_unrecognized_csv(data):
+    app = source_app(data)
+    open_panel(app, 'source_test')
+    assert not app.get('link_button')
+    assert any(e.value == 'Terjemahan belum tersedia dalam aplikasi' for e in app.info)
+
+
+def test_source_link_never_uses_an_alternate_csv_column():
+    app = source_app(thaharah_data(), 'judul_arab')
+    open_panel(app, 'source_test')
+    assert not app.get('link_button')
+
+
+def test_source_link_still_available_without_private_pilot_files():
+    with patch.object(reference, '_workflow', side_effect=FileNotFoundError('Private context absent')):
+        app = source_app(thaharah_data())
+        open_panel(app, 'source_test')
+    assert_external_source(app)

@@ -32,22 +32,26 @@ def run(page, url):
     panel = card.locator('[data-testid="stExpander"]').filter(
         has=page.get_by_text('Lihat Terjemahan Referensi', exact=True))
     expect(panel).to_be_visible()
-    expect(panel.get_by_text('Terjemahan belum tersedia', exact=True)).to_have_count(0)
+    expect(panel.get_by_text('Terjemahan belum tersedia dalam aplikasi', exact=True)).to_have_count(0)
     for _ in range(2):
         panel.get_by_text('Lihat Terjemahan Referensi', exact=True).click()
-        notice = panel.get_by_text('Terjemahan belum tersedia', exact=True)
+        notice = panel.get_by_text('Terjemahan belum tersedia dalam aplikasi', exact=True)
         expect(notice).to_be_visible()
         notice.scroll_into_view_if_needed()
         expect(notice).to_be_in_viewport(ratio=0.9)
         expect(panel.get_by_text(re.compile('bukan keluaran model'))).to_be_visible()
+        link = panel.get_by_role('link', name=re.compile(r'Baca Terjemahan di Sumber Referensi$'))
+        expect(link).to_have_attribute('href', 'https://www.terjemahankitab.com/2023/10/terjemah-kitab-fathul-qorib-bab_27.html?m=1')
+        expect(link).to_have_attribute('target', '_blank')
+        expect(panel.get_by_text(re.compile('Referensi eksternal'))).to_be_visible()
         page.screenshot(path=str(OUT / 'panel_unavailable.png'), full_page=True, animations='disabled')
         panel.get_by_text('Lihat Terjemahan Referensi', exact=True).click()
-        expect(panel.get_by_text('Terjemahan belum tersedia', exact=True)).to_have_count(0)
+        expect(panel.get_by_text('Terjemahan belum tersedia dalam aplikasi', exact=True)).to_have_count(0)
     assert base.download(page, button, 'thaharah_after.csv') == csv_before
     assert base.download(page, page.get_by_role('button', name='Unduh Semua (ZIP)', exact=True), 'after_panel.zip') == zip_before
     page.set_viewport_size({'width': 390, 'height': 844})
     panel.get_by_text('Lihat Terjemahan Referensi', exact=True).click()
-    notice = panel.get_by_text('Terjemahan belum tersedia', exact=True)
+    notice = panel.get_by_text('Terjemahan belum tersedia dalam aplikasi', exact=True)
     expect(notice).to_be_visible()
     notice.scroll_into_view_if_needed()
     expect(notice).to_be_in_viewport(ratio=0.9)
@@ -56,6 +60,7 @@ def run(page, url):
     page.set_viewport_size({'width': 1440, 'height': 1000})
     base.select(page, 'Berkas untuk pratinjau, proses ulang, atau unduh', '1. one.txt')
     expect(card.get_by_text('Lihat Terjemahan Referensi', exact=True)).to_have_count(0)
+    expect(card.get_by_role('link', name=re.compile(r'Baca Terjemahan di Sumber Referensi$'))).to_have_count(0)
     page.get_by_role('button', name='Proses Diakritisasi', exact=True).click()
     expect(card.get_by_role('button', name=re.compile(r'Unduh TXT$'))).to_be_visible()
     base.select(page, 'Berkas untuk pratinjau, proses ulang, atau unduh', '2. 01_Thaharah.csv')
@@ -65,6 +70,7 @@ def run(page, url):
     result.update(real_thaharah_csv_processed=True, optional_panel_unavailable=True,
                   native_open_close=True, downloads_byte_identical=True,
                   txt_has_no_panel=True, panel_mobile_no_overflow=True,
+                  thaharah_external_source_link=True, external_page_not_downloaded=True,
                   verified_translation_browser_test=False)
     return result
 
