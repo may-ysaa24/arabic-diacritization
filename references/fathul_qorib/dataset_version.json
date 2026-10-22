@@ -1,0 +1,365 @@
+{
+  "schema_version": "3.0",
+  "dataset_version": "fqdemo-v3-073ba6ffbf7c3a38a5cc431764719f1683f395e87275d62402c531ecd28dfabb",
+  "books": [
+    {
+      "kitab_id": "00",
+      "dataset": {
+        "file": "00_Pendahuluan.csv",
+        "sha256": "2b339989909b02e9dd95eeb2409f2f83e571b534cdade970e52eda265d2c5d7f",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 37,
+        "id_prefix": "FQDEMO_00_",
+        "kitab": "Pendahuluan",
+        "judul_arab": "",
+        "rows_sha256": "e6f82107db8ffff41347a1aac906cd2e1b4756d535ca0c85971171ca6e4fea58"
+      },
+      "arabic_reference_sha256": "af8b05f91e6111939718a6c5b82158a5786a77cd6706db88f337bcadc8f5955c"
+    },
+    {
+      "kitab_id": "01",
+      "dataset": {
+        "file": "01_Thaharah.csv",
+        "sha256": "e14c1c70e9596ab28467f50c1dbae222c4663c92a46ef8dde63b424509a42e03",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 328,
+        "id_prefix": "FQDEMO_01_",
+        "kitab": "Thaharah",
+        "judul_arab": "كِتَابُ الطَّهَارَةِ",
+        "rows_sha256": "53f8bd267d8e3d9103a9d44cd9dbcd8044c5a9dd5c5a1a9fc8c2da9ff67beed1"
+      },
+      "arabic_reference_sha256": "b7e9e54a252aea9f04d67c5d2fd62e6d1b78232fa60c816897e6b18cee61b20e"
+    },
+    {
+      "kitab_id": "02",
+      "dataset": {
+        "file": "02_Shalat.csv",
+        "sha256": "a1525fe1d06036f1afc651c080058986ca17e394998f20cd1d3e0d478576a4ac",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 356,
+        "id_prefix": "FQDEMO_02_",
+        "kitab": "Shalat",
+        "judul_arab": "كِتَابُ الصَّلَاةِ",
+        "rows_sha256": "6aecd3d94afe8d75b243c0adf502c5702735851fef955a2f193067e7067d003a"
+      },
+      "arabic_reference_sha256": "731f85113344bae24b2579c129fda36916a3f66ba089781ba4bcf4c09ea49af6"
+    },
+    {
+      "kitab_id": "03",
+      "dataset": {
+        "file": "03_Zakat.csv",
+        "sha256": "f7b1415a846b1688bb8e0d82ea030b1f04436fb19c875c95954426b4b0a99676",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 116,
+        "id_prefix": "FQDEMO_03_",
+        "kitab": "Zakat",
+        "judul_arab": "كِتَابُ الزَّكَاةِ",
+        "rows_sha256": "6aa1a966a870d4a5efc5070a694145f25424f3b160ab5a1b81dd8e1c45ac1b76"
+      },
+      "arabic_reference_sha256": "2dd87d9b2c550bcffe6ba89055d1f67409d72420b4bf3aa53f98ccaee55307e5"
+    },
+    {
+      "kitab_id": "04",
+      "dataset": {
+        "file": "04_Puasa.csv",
+        "sha256": "924d7bad3f3b06a3e05333e6edc90cbab0c9cf7e05ef67497252cd07dac0ddfa",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 63,
+        "id_prefix": "FQDEMO_04_",
+        "kitab": "Puasa",
+        "judul_arab": "كِتَابُ الصِّيَامِ",
+        "rows_sha256": "165579903a478861f1e5113c86de09ecf5f3865ad017cff56d43f2804031494c"
+      },
+      "arabic_reference_sha256": "e278bb7e0c08e20d41e711329a5411feb3433b24e513f6c18f74fb59a61a41df"
+    },
+    {
+      "kitab_id": "05",
+      "dataset": {
+        "file": "05_Haji.csv",
+        "sha256": "fce6de8275c43d97e37d7de8ab755224b1fac0369469fc036c4ff80805854f49",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 108,
+        "id_prefix": "FQDEMO_05_",
+        "kitab": "Haji",
+        "judul_arab": "كِتَابُ الْحَجِّ",
+        "rows_sha256": "8a4936f204dca554e6bc88b2ac8571f59f3c2502a5fd6635b4e6c64e3b3936ea"
+      },
+      "arabic_reference_sha256": "fd9ee06d2ad7ce2725d4d6bbe53405bea598a947ed5960cd6358c18d146282e4"
+    },
+    {
+      "kitab_id": "06",
+      "dataset": {
+        "file": "06_Jual_Beli_dan_Muamalah.csv",
+        "sha256": "b5d3f0cf21fdee73007f7d03971f86b32685525f34c46368183bf7096ce72766",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 331,
+        "id_prefix": "FQDEMO_06_",
+        "kitab": "Jual Beli dan Muamalah",
+        "judul_arab": "كِتَابُ الْبُيُوعِ وَغَيْرِهَا مِنَ الْمُعَامَلَاتِ",
+        "rows_sha256": "e5e0f03927e0cd99079a3dd733f105d6b21f89192a0b541b8cbfcc6a2b074099"
+      },
+      "arabic_reference_sha256": "0483c7a4e0a422d633669f4d00805cb98cf2e2c828a28cf17fe8ed013a4021f1"
+    },
+    {
+      "kitab_id": "07",
+      "dataset": {
+        "file": "07_Faraidh_dan_Wasiat.csv",
+        "sha256": "e2163b7bd8001f6a945180814efde0ea0f17128294a3d3973d355ded0253d2e1",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 67,
+        "id_prefix": "FQDEMO_07_",
+        "kitab": "Faraidh dan Wasiat",
+        "judul_arab": "كِتَابُ الْفَرَائِضِ وَالْوَصَايَا",
+        "rows_sha256": "55edaff6d4c47b3f7cf2781f3d212e7e7173793bb9a521360fe664ee9214251e"
+      },
+      "arabic_reference_sha256": "acb3070dee434a3cb43d4b293266162fb43d5dd1d15da65c9541b93ebb1cfb0f"
+    },
+    {
+      "kitab_id": "08",
+      "dataset": {
+        "file": "08_Nikah.csv",
+        "sha256": "96ad0d13ccd61bf1974c932d7236415a187df531a4d82dfbeffad39220271086",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 284,
+        "id_prefix": "FQDEMO_08_",
+        "kitab": "Nikah",
+        "judul_arab": "كِتَابُ النِّكَاحِ",
+        "rows_sha256": "b69d396024a3247804322c211b332c8813e762c5691ec69323a7a2515ce31fd3"
+      },
+      "arabic_reference_sha256": "9f2e0036b2b1686da0740e0ae0ad83e4e020989784141d4a9315187e492726ec"
+    },
+    {
+      "kitab_id": "09",
+      "dataset": {
+        "file": "09_Jinayat.csv",
+        "sha256": "15e25c3a3ab77fff4a1c06f311acc2a097a1c4bf4695e83425bd46bf7e4e6a5c",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 87,
+        "id_prefix": "FQDEMO_09_",
+        "kitab": "Jinayat",
+        "judul_arab": "كِتَابُ الْجِنَايَاتِ",
+        "rows_sha256": "08dbae432a0ec7b81dd56af1aebf2c4a38244296c77a0465ef52ad455ffbc57d"
+      },
+      "arabic_reference_sha256": "e4d65504ba5443164f84046d646ac02592f9a2769d349545ba0a69cdc726b0ab"
+    },
+    {
+      "kitab_id": "10",
+      "dataset": {
+        "file": "10_Hudud.csv",
+        "sha256": "c6fab2173a9492647e845cf62f09347fba5194b81506b4008eecd2df6bd42697",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 95,
+        "id_prefix": "FQDEMO_10_",
+        "kitab": "Hudud",
+        "judul_arab": "كِتَابُ الْحُدُودِ",
+        "rows_sha256": "dadb0dd68580c62a676850e3ee1ab361885e0d2a86f485410c21e6b72bad3e48"
+      },
+      "arabic_reference_sha256": "44cd4613e135b7f879bc8c5bbc47c5a16550cdf9634ca0e1cb9f512514d874c4"
+    },
+    {
+      "kitab_id": "11",
+      "dataset": {
+        "file": "11_Jihad.csv",
+        "sha256": "4dc06741d80e84230a0ac45e9c24efdd9d567abfda1e32199bccaf5682de4c55",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 85,
+        "id_prefix": "FQDEMO_11_",
+        "kitab": "Jihad",
+        "judul_arab": "كِتَابُ الْجِهَادِ",
+        "rows_sha256": "428452ee6a0028b4db8edd9aaa833598e0b90d8eb7e4f3977837dcf1fcc9350a"
+      },
+      "arabic_reference_sha256": "22e014a9f2c89b3c9ceb2aafe3f0367230824b49d8f533b965d4feb8a125809b"
+    },
+    {
+      "kitab_id": "12",
+      "dataset": {
+        "file": "12_Berburu_dan_Penyembelihan.csv",
+        "sha256": "75ded553b89836f495bfb4e06ef5248efa153674e060d64d6cf0156b1e9e6358",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 77,
+        "id_prefix": "FQDEMO_12_",
+        "kitab": "Berburu dan Penyembelihan",
+        "judul_arab": "كِتَابُ الصَّيْدِ وَالذَّبَائِحِ",
+        "rows_sha256": "40d3f97e6aca93aecd5bb7527949824e7bd81bf95ee4da1f3281043d50f8d456"
+      },
+      "arabic_reference_sha256": "6cd164890354d67d4f3bfb9d6be1921cb930f2196e348eee7e3eb214ae20519d"
+    },
+    {
+      "kitab_id": "13",
+      "dataset": {
+        "file": "13_Perlombaan_dan_Memanah.csv",
+        "sha256": "e1d494f3c7bee72d93afaec6cc226be93a99484faf0a2c76a94bbe6f99391cba",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 11,
+        "id_prefix": "FQDEMO_13_",
+        "kitab": "Perlombaan dan Memanah",
+        "judul_arab": "كِتَابُ السَّبْقِ وَالرَّمْيِ",
+        "rows_sha256": "72806b8f862f00c1ed6b0c4ad8327871ee43150ee366e208317783daca194952"
+      },
+      "arabic_reference_sha256": "948fdbfbcaca9caaa61104ecbf119dbc914de4464389a86a595d4b54ab273507"
+    },
+    {
+      "kitab_id": "14",
+      "dataset": {
+        "file": "14_Sumpah_dan_Nazar.csv",
+        "sha256": "7feddb3a6915e9b4bd3bd36f22966f82eced1c579d9f11030489393446a99d0c",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 33,
+        "id_prefix": "FQDEMO_14_",
+        "kitab": "Sumpah dan Nazar",
+        "judul_arab": "كِتَابُ الْأَيْمَانِ وَالنُّذُورِ",
+        "rows_sha256": "f76f5e468b7c51e9f5712de337176477efae4c92b2f9ad465bc9442db250bd82"
+      },
+      "arabic_reference_sha256": "1beaa45afacc540a420e72dd0ceff1661e3112d5d456c636bf12884a7c68918f"
+    },
+    {
+      "kitab_id": "15",
+      "dataset": {
+        "file": "15_Peradilan_dan_Persaksian.csv",
+        "sha256": "fe99b6096d461970a8765f7125fed9fc41d0a12b494c880c97fb162694ab4b95",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 129,
+        "id_prefix": "FQDEMO_15_",
+        "kitab": "Peradilan dan Persaksian",
+        "judul_arab": "كِتَابُ الْأَقْضِيَةِ وَالشَّهَادَاتِ",
+        "rows_sha256": "0296e1ba0bf0432d8feb2abc19726bd926aedaf27aeac0a5005593cc3e93fe67"
+      },
+      "arabic_reference_sha256": "0ca70e489d68dbd1ac77ea914fedba77f5d7eca1ef72593ebb18671631a1f36d"
+    },
+    {
+      "kitab_id": "16",
+      "dataset": {
+        "file": "16_Memerdekakan_Budak.csv",
+        "sha256": "cea6795b9d53c670f8f4894a0ea95afd7ae8fe96813e1344b74208c9161b8ad4",
+        "columns": [
+          "id",
+          "kitab",
+          "judul_arab",
+          "page",
+          "chunk_id",
+          "teks_gundul"
+        ],
+        "row_count": 58,
+        "id_prefix": "FQDEMO_16_",
+        "kitab": "Memerdekakan Budak",
+        "judul_arab": "كِتَابُ الْعِتْقِ",
+        "rows_sha256": "71b2cd9200b83bd9d314d8afa932ba0ed3efb4625b7e619b2f686d787977299a"
+      },
+      "arabic_reference_sha256": "4845d0ff5d02355a01f43be03bbbdc12195e66dff3b5d68c1d3cf58979caae90"
+    }
+  ],
+  "paragraph_map_sha256": "8c12b47e4c448ba1c2f2c1d92f9a751e0daa0784cbb4690236816ea2d26fbfe8",
+  "raw_source_sha256": "df863d10e3b79228a4e3427c4756e57f6362ad6b0bfbe95bdd0ab0c65c2e6706"
+}

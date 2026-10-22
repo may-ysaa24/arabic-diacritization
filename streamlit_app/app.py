@@ -22,7 +22,7 @@ import streamlit as st
 from file_safety import spreadsheet_safe_csv, txt_control_error
 import upload_queue as queue
 import translation_reference as reference
-from translation_panel import render_reference_panel
+from translation_panel import render_reference_panel, sync_reference_file
 
 
 # Streamlit sends frontend configuration before executing this script. Bootstrap
@@ -1228,6 +1228,7 @@ def render_file_result(result, filename):
 
 
 def render_file():
+    sync_reference_file(st.session_state.active_upload_id)
     scroll_request = st.session_state.pop("queue_scroll_request", None)
     with st.container(key="file_workspace"):
         with st.container(key="file_upload_card", border=True):
@@ -1305,7 +1306,7 @@ def render_file():
                 if (result.get("success") and result.get("input_type") == "csv"
                         and reference.is_demo_csv(validation["dataframe"], selected_column)):
                     render_reference_panel(snapshot["data"], validation["dataframe"], selected_column,
-                                           st.session_state.active_upload_id or snapshot["digest"])
+                                           st.session_state.active_upload_id or snapshot["digest"], result)
             else:
                 empty_output("Pilih berkas TXT atau CSV yang valid, lalu jalankan Proses Diakritisasi.")
         if scroll_request:

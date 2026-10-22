@@ -1,45 +1,102 @@
 """Optional reference-only UI; never calls or imports the inference engine."""
-from hashlib import sha256
-
 import streamlit as st
 
 import translation_reference as reference
+from translation_prediction import prediction_pairs
 
-THAHARAH_SOURCE_URL = 'https://www.terjemahankitab.com/2023/10/terjemah-kitab-fathul-qorib-bab_27.html?m=1'
+PAGE_SIZE = 10
+
+
+def sync_reference_file(file_key):
+    """Reset pagination on file changes, including a round trip through TXT."""
+    previous = st.session_state.get('translation_reference_active_file')
+    if previous != file_key:
+        for identity in (previous, file_key):
+            st.session_state.pop(f'translation_reference_page_{identity}', None)
+            st.session_state.pop(f'translation_reference_page_context_{identity}', None)
+        st.session_state['translation_reference_active_file'] = file_key
+
+
+def paged_pairs(pairs, file_key, preview):
+    """Render navigation only; instantiate cards for at most one page."""
+    page_key = f'translation_reference_page_{file_key}'
+    context_key = f'translation_reference_page_context_{file_key}'
+    context = (preview, tuple(pair['unit']['unit_id'] for pair in pairs))
+    pages = (len(pairs) + PAGE_SIZE - 1) // PAGE_SIZE
+    if st.session_state.get(context_key) != context:
+        st.session_state[context_key] = context
+        st.session_state[page_key] = 1
+    if not pairs:
+        st.session_state.pop(page_key, None)
+        return []
+    if st.session_state.get(page_key, 1) not in range(1, pages + 1):
+        st.session_state[page_key] = 1
+    page = st.selectbox('Halaman terjemahan', range(1, pages + 1), key=page_key,
+                        format_func=lambda number: f'{number} / {pages}')
+    start = (page - 1) * PAGE_SIZE
+    end = min(start + PAGE_SIZE, len(pairs))
+    st.caption(f'Paragraf {start + 1}–{end} dari {len(pairs)} · Halaman {page} dari {pages}')
+    return pairs[start:end]
 
 
 @st.fragment
-def render_reference_panel(upload_data, dataframe, column, file_key):
-    panel = st.expander('Lihat Terjemahan Referensi', expanded=False,
+def render_reference_panel(upload_data, dataframe, column, file_key, result=None):
+    sync_reference_file(file_key)
+    panel = st.expander('Lihat Terjemahan Mandiri', expanded=False,
                         key=f'translation_reference_{file_key}', on_change='rerun')
     if not panel.open:
         return
     with panel:
-        st.caption('Referensi terpisah dari hasil BiLSTM–CRF. Terjemahan bukan keluaran model '
+        st.caption('Terjemahan mandiri disimpan terpisah dari hasil BiLSTM–CRF '
                    'dan tidak disertakan dalam unduhan hasil diakritisasi.')
-        units = reference.display_units(upload_data, dataframe, column)
-        if not units:
-            st.info('Terjemahan belum tersedia dalam aplikasi')
-        # The pinned CSV identifies Thaharah even when renamed. Neither a file
-        # name nor a user-supplied title/URL can select another external source.
-        if (reference.is_demo_csv(dataframe, column)
-                and sha256(upload_data).hexdigest() == reference.CSV_SHA256):
-            st.caption('Referensi eksternal (situs sumber). Tautan ini bukan bukti penyimpanan '
-                       'atau verifikasi terjemahan dalam aplikasi.')
-            st.link_button('Baca Terjemahan di Sumber Referensi', THAHARAH_SOURCE_URL,
-                           key=f'translation_source_{file_key}', on_click='ignore',
-                           icon=':material/open_in_new:')
-        if not units:
-            return
-        st.caption('Hanya paragraf dengan pasangan, verifikasi, dan izin tampilan yang memenuhi syarat '
-                   'ditampilkan. Segmen lainnya: Terjemahan belum tersedia.')
-        for unit in units:
-            with st.container(border=True):
-                st.text('Paragraf: ' + unit['paragraph_id'] + '\nSegmen: '
-                        + ', '.join(t['segment_id'] for t in unit['targets']))
-                st.text(unit['arabic_gundul'])
-                st.text(unit['translation']['text_indonesian'])
-                st.text('Sumber: ' + unit['source_parts'][0]['source_url']
-                        + '\nPenerjemah: ' + unit['translation']['translator']
-                        + '\nPemeriksa: ' + unit['verification']['reviewer'])
-                st.caption('Satu terjemahan berlaku untuk seluruh segmen paragraf di atas.')
+        preview = st.checkbox('Pratinjau draf lokal (belum diverifikasi)', value=False,
+                              key=f'translation_reference_draft_{file_key}')
+        if preview:
+            st.warning(reference.DRAFT_LABEL)
+        units = (reference.display_units(upload_data, dataframe, column, preview_drafts=True)
+                 if preview else reference.display_units(upload_data, dataframe, column))
+        pairs = prediction_pairs(units, dataframe, result, preview_drafts=preview)
+        visible_pairs = paged_pairs(pairs, file_key, preview)
+        if not pairs:
+            st.info('Terjemahan belum tersedia')
+        else:
+            covered = sum(len(pair['segments']) for pair in pairs)
+            drafts = sum(pair['unit']['verification']['status'] == reference.DRAFT_STATUS for pair in pairs)
+            st.caption(f'{len(pairs)} paragraf · {drafts} draf · {len(pairs) - drafts} terverifikasi · '
+                       f'{covered} dari {len(dataframe)} segmen. '
+                       'Segmen lainnya: Terjemahan belum tersedia.')
+            for pair in visible_pairs:
+                unit = pair['unit']
+                with st.container(border=True):
+                    is_draft = unit['verification']['status'] == reference.DRAFT_STATUS
+                    if is_draft:
+                        st.warning(reference.DRAFT_LABEL)
+                    st.text('Kitab: ' + pair['kitab'])
+                    if unit['section']:
+                        st.text('Bagian: ' + unit['section'])
+                    st.text('Paragraf: ' + unit['paragraph_id'] + '\nSegmen: '
+                            + ', '.join(s['segment_id'] for s in pair['segments']))
+                    st.caption('Halaman PDF: ' + ', '.join(dict.fromkeys(
+                        str(t['pdf_page']) for t in unit['targets'])))
+                    arabic, indonesian = st.columns(2)
+                    with arabic:
+                        st.markdown('**Arab — hasil BiLSTM–CRF**')
+                        for segment in pair['segments']:
+                            if len(pair['segments']) > 1:
+                                st.caption(segment['segment_id'])
+                            st.text(segment['prediction'])
+                    with indonesian:
+                        st.markdown('**Indonesia — draf terjemahan**' if is_draft
+                                    else '**Indonesia — terjemahan mandiri terverifikasi**')
+                        st.text(unit['translation']['text_indonesian'])
+                    if unit.get('source_note'):
+                        st.text('Catatan sumber: ' + unit['source_note'])
+                    st.text('Penyusun: ' + unit['translation']['translator'])
+                    if is_draft:
+                        st.text('Status: ' + reference.DRAFT_STATUS + ' · Belum diperiksa manusia')
+                    else:
+                        st.text('Verifikasi: verified · ' + unit['verification']['reviewer']
+                                + ' · ' + unit['verification']['reviewed_at'])
+                    st.caption('Satu terjemahan berlaku untuk seluruh segmen paragraf di atas. '
+                               'Hasil Arab menggunakan prediksi yang sudah tersimpan; '
+                               'batas antarsegmen tetap ditampilkan.')

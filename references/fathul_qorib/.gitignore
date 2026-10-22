@@ -1,0 +1,8 @@
+# Only the V3 manifest and AI drafts selected for version control are eligible.
+# Inclusion in Git does not mean human verification of the translations.
+/*
+!/.gitignore
+!/dataset_version.json
+!/original/
+/original/*
+!/original/translations.jsonl

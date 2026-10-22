@@ -1,216 +1,264 @@
-"""Synthetic display fixtures are NOT translations or evidence of book permission."""
+"""V3 original review/identity checks; no internet rights or pilot dependencies."""
 from copy import deepcopy
-from hashlib import sha256
 from io import BytesIO
 import json
-from pathlib import Path
 import sys
-from unittest.mock import patch
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
-APP = Path(__file__).resolve().parents[1] / 'streamlit_app'
-sys.path.insert(0, str(APP))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'streamlit_app'))
 import translation_reference as r
-
-STAMP = '2026-10-22T12:00:00+07:00'
-SENTINEL = 'TEST_DATA_NOT_A_TRANSLATION <script>TEST_ONLY</script>'
-
-
-def write(path, obj):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj), encoding='utf-8')
-
-
-@pytest.fixture
-def display_fixture(tmp_path, monkeypatch):
-    w = r._workflow()
-    local = tmp_path / '.local'
-    # ASCII metadata fixtures only; no Arabic/Indonesian book text is fabricated.
-    rows = [{'id': f'FQDEMO_01_{i:05d}', 'chunk_id': f'TEST_CHUNK_{i}', 'page': '1',
-             'teks_gundul': f'TEST_PART_{i}'} for i in (1, 2)]
-    frame = pd.DataFrame(rows)
-    data = frame.to_csv(index=False).encode()
-    full = ''.join(row['teks_gundul'] for row in rows)
-    refs, offset = {}, 0
-    for row in rows:
-        refs[row['id']] = dict(row, paragraph_id='TEST_PARAGRAPH', source_record_1based='1',
-                              source_start=str(offset), source_end_exclusive=str(offset + len(row['teks_gundul'])),
-                              text_diacritized=row['teks_gundul'])
-        offset += len(row['teks_gundul'])
-    raw = {'page': '1', 'text_diacritized': full}
-    context = {'version': r.VERSION, 'demo': {row['id']: row for row in rows}, 'refs': refs,
-               'paragraphs': {'TEST_PARAGRAPH': list(refs.values())}, 'raw': {'1': raw}, 'raw_rows': [raw],
-               'paragraph_map': {'TEST_PARAGRAPH': {'page': '1', 'source_start': '0',
-                   'source_end_exclusive': str(len(full)), 'source_sha256': w.sha_text(full), 'source_record_1based': '1'}}}
-    targets = [w.target_for(row['id'], context) for row in rows]
-    parts = [{'locator_id': 'TEST_LOCATOR', 'source_id': 'primary', 'source_url': w.PRIMARY,
-              'target_segment_id': rows[0]['id'], 'target_bare_span': {'start': 0, 'end_exclusive': 1},
-              'arabic_lines': [0, 1], 'indonesian_lines': [2, 3], 'relation': 'TEST_ONLY',
-              'locator_status': 'candidate_rendered_lines_not_stable_anchor'}]
-    registry = {'status': 'documented', 'test_only': 'MOCKED_RIGHTS_NOT_REAL_PERMISSION'}
-    unit = {'schema_version': '2.0.0', 'unit_id': 'FQTRV2_TEST_PARAGRAPH', 'dataset_version': r.VERSION,
-            'paragraph_id': 'TEST_PARAGRAPH', 'targets': targets, 'target_digest': w.fingerprint(targets),
-            'arabic_text': full, 'arabic_gundul': full, 'unit_types': ['complete_paragraph'],
-            'alignment_status': 'candidate_match', 'source_parts': parts, 'source_digest': w.fingerprint(parts),
-            'alignment_review': {'decision': 'aligned', 'reviewer': 'TEST_ONLY', 'reviewed_at': STAMP,
-                'note': 'TEST_ONLY', 'source_ranges': [{'locator_id': 'TEST_LOCATOR', 'boundary_description': 'TEST_ONLY'}]},
-            'translation': {'text_indonesian': SENTINEL, 'translator': 'TEST_ONLY', 'source_id': 'primary',
-                'source_locator_ids': ['TEST_LOCATOR'], 'checked_by': 'TEST_ONLY', 'checked_at': STAMP,
-                'checked_text_sha256': w.sha_text(SENTINEL)},
-            'permission_registry_digest': w.fingerprint(registry),
-            'verification': {'status': 'verified', 'reviewer': 'TEST_ONLY', 'reviewed_at': STAMP,
-                'reviewed_text_sha256': w.sha_text(SENTINEL), 'reviewed_target_digest': w.fingerprint(targets),
-                'reviewed_source_digest': w.fingerprint(parts)}, 'publication_ready': False}
-    path = local / 'display/units/test_only.json'
-    write(path, unit)
-    manifest = {'schema_version': '1.0', 'dataset_version': r.VERSION, 'csv_sha256': sha256(data).hexdigest(),
-                'permission_registry_digest': w.fingerprint(registry), 'approvals': [{
-                    'unit_id': unit['unit_id'], 'file': 'units/test_only.json', 'sha256': w.sha_file(path),
-                    'decision': 'approved_for_display', 'reviewer': 'TEST_ONLY', 'reviewed_at': STAMP}]}
-    write(local / 'permission_registry.json', registry)
-    write(local / 'display/manifest.json', manifest)
-    monkeypatch.setattr(r, 'V2', tmp_path)
-    monkeypatch.setattr(r, 'CSV_SHA256', sha256(data).hexdigest())
-    monkeypatch.setattr(r, '_workflow', lambda: w)
-    monkeypatch.setattr(w, 'load_context', lambda *args: deepcopy(context))
-    # Explicit mock for display-content tests. No grant for the real primary is invented.
-    def mock_rights(workflow, value, folder):
-        if value != registry or value.get('status') != 'documented':
-            raise ValueError('TEST_ONLY permission changed')
-    monkeypatch.setattr(r, '_rights', mock_rights)
-    return {'w': w, 'local': local, 'data': data, 'frame': frame, 'unit': unit, 'manifest': manifest,
-            'path': path, 'registry': registry, 'context': context}
+from test_translation_prediction import direct_fixture
+from translation_test_fixture import write_units, SENTINEL
 
 
 def load(f):
     return r.display_units(f['data'], f['frame'], 'teks_gundul')
 
 
-def update_unit(f):
-    write(f['path'], f['unit'])
-    f['manifest']['approvals'][0]['sha256'] = f['w'].sha_file(f['path'])
-    write(f['local'] / 'display/manifest.json', f['manifest'])
+def test_verified_original_requires_no_internet_permission_registry(direct_fixture):
+    f = direct_fixture
+    assert len(load(f)) == 1
+    assert load(f)[0]['translation']['text_indonesian'] == SENTINEL
+    assert not list(f['path'].parent.glob('*permission*'))
 
 
-def test_verified_synthetic_unit_displays_once_for_two_segments(display_fixture):
-    result = load(display_fixture)
-    assert len(result) == 1 and len(result[0]['targets']) == 2
-    assert result[0]['translation']['text_indonesian'] == SENTINEL
-    assert result[0]['publication_ready'] is False  # Preparation hold is never promoted.
-
-
-@pytest.mark.parametrize('case', ['status', 'text', 'paragraph', 'segment', 'hash', 'chunk', 'version',
-    'source', 'target_digest', 'checked_hash', 'review_hash', 'reviewer', 'alignment', 'permission_digest',
-    'missing_segment', 'reversed_segments', 'unknown_field', 'publication'])
-def test_ineligible_unit_never_displays(display_fixture, case):
-    f = display_fixture
-    u = f['unit']
-    if case == 'status': u['verification']['status'] = 'needs_review'
-    elif case == 'text': u['translation']['text_indonesian'] = None
-    elif case == 'paragraph': u['paragraph_id'] = 'WRONG'
-    elif case == 'segment': u['targets'][0]['segment_id'] = 'WRONG'
-    elif case == 'hash': u['targets'][0]['arabic_gundul_sha256'] = '0' * 64
-    elif case == 'chunk': u['targets'][0]['chunk_id'] = 'WRONG'
-    elif case == 'version': u['dataset_version'] = 'fqdemo-' + '0' * 64
-    elif case == 'source': u['source_parts'][0]['source_url'] = 'https://invalid.example/'
-    elif case == 'target_digest': u['target_digest'] = '0' * 64
-    elif case == 'checked_hash': u['translation']['checked_text_sha256'] = '0' * 64
-    elif case == 'review_hash': u['verification']['reviewed_source_digest'] = '0' * 64
-    elif case == 'reviewer': u['verification']['reviewer'] = None
-    elif case == 'alignment': u['alignment_review']['decision'] = 'needs_review'
-    elif case == 'permission_digest': u['permission_registry_digest'] = '0' * 64
-    elif case == 'missing_segment': u['targets'].pop()
-    elif case == 'reversed_segments': u['targets'].reverse()
-    elif case == 'publication': u['publication_ready'] = True
-    else: u['hidden_payload'] = SENTINEL
-    update_unit(f)
+@pytest.mark.parametrize('case', ['version', 'paragraph', 'unit_id', 'chunk', 'hash', 'vowel_hash',
+    'span', 'record', 'page', 'reversed', 'missing', 'digest', 'empty_text', 'no_author', 'internet_origin',
+    'draft', 'needs_review', 'reviewer', 'date', 'text_review_hash', 'target_review_hash', 'extra_legacy_field'])
+def test_invalid_or_unreviewed_original_hidden(direct_fixture, case):
+    f = direct_fixture
+    unit = f['unit']
+    target = unit['targets'][0]
+    if case == 'version': unit['dataset_version'] = 'WRONG'
+    elif case == 'paragraph': unit['paragraph_id'] = 'WRONG'
+    elif case == 'unit_id': unit['unit_id'] = 'WRONG'
+    elif case == 'chunk': target['chunk_id'] = 'WRONG'
+    elif case == 'hash': target['arabic_gundul_sha256'] = '0' * 64
+    elif case == 'vowel_hash': target['arabic_text_sha256'] = '0' * 64
+    elif case == 'span': target['source_span']['end_exclusive'] += 1
+    elif case == 'record': target['source_record_1based'] += 1
+    elif case == 'page': target['pdf_page'] += 1
+    elif case == 'reversed': unit['targets'].reverse()
+    elif case == 'missing': unit['targets'].pop()
+    elif case == 'digest': unit['target_digest'] = '0' * 64
+    elif case == 'empty_text': unit['translation']['text_indonesian'] = ''
+    elif case == 'no_author': unit['translation']['translator'] = None
+    elif case == 'internet_origin': unit['translation']['origin'] = 'internet'
+    elif case in ('draft', 'needs_review'): unit['verification']['status'] = case
+    elif case == 'reviewer': unit['verification']['reviewer'] = None
+    elif case == 'date': unit['verification']['reviewed_at'] = '2026-10-22'
+    elif case == 'text_review_hash': unit['verification']['reviewed_text_sha256'] = '0' * 64
+    elif case == 'target_review_hash': unit['verification']['reviewed_target_digest'] = '0' * 64
+    elif case == 'extra_legacy_field': unit['permission_registry_digest'] = '0' * 64
+    write_units(f['path'], [unit])
     assert load(f) == []
 
 
-@pytest.mark.parametrize('case', ['manifest_missing', 'manifest_version', 'manifest_permission', 'manifest_duplicate',
-    'manifest_file_hash', 'unapproved', 'no_display_reviewer', 'traversal', 'symlink', 'oversized', 'corrupt', 'csv_changed',
-    'csv_renamed_column', 'csv_duplicate_id', 'csv_hash_text', 'context_version', 'rights_revoked'])
-def test_catalog_and_input_fail_closed(display_fixture, case):
-    f = display_fixture
-    m = f['manifest']
-    if case == 'manifest_missing':
-        (f['local'] / 'display/manifest.json').unlink()
-    elif case == 'manifest_version': m['dataset_version'] = 'WRONG'
-    elif case == 'manifest_permission': m['permission_registry_digest'] = '0' * 64
-    elif case == 'manifest_duplicate': m['approvals'].append(deepcopy(m['approvals'][0]))
-    elif case == 'manifest_file_hash': m['approvals'][0]['sha256'] = '0' * 64
-    elif case == 'unapproved': m['approvals'][0]['decision'] = 'needs_review'
-    elif case == 'no_display_reviewer': m['approvals'][0]['reviewer'] = None
-    elif case == 'traversal': m['approvals'][0]['file'] = '../../outside.json'
-    elif case == 'symlink':
-        # Path.resolve also rejects a directory junction/symlink if present.
-        outside = f['local'] / 'outside.json'
-        write(outside, f['unit'])
-        try: (f['local'] / 'display/units/link.json').symlink_to(outside)
-        except OSError: pytest.skip('Windows symlink creation unavailable')
-        m['approvals'][0]['file'] = 'units/link.json'
-    elif case == 'oversized': f['path'].write_bytes(b'X' * (r.MAX_JSON_BYTES + 1))
-    elif case == 'corrupt': f['path'].write_text('{', encoding='utf-8')
-    elif case == 'csv_changed': f['data'] += b'\n'
-    elif case == 'csv_renamed_column': f['frame'].rename(columns={'teks_gundul': 'judul_arab'}, inplace=True)
-    elif case == 'csv_duplicate_id': f['frame'].loc[1, 'id'] = f['frame'].loc[0, 'id']
-    elif case == 'csv_hash_text': f['frame'].loc[0, 'teks_gundul'] += 'X'
-    elif case == 'context_version': f['context']['version'] = 'WRONG'
-    elif case == 'rights_revoked': write(f['local'] / 'permission_registry.json', {'status': 'user_reported_unverified'})
-    if case != 'manifest_missing': write(f['local'] / 'display/manifest.json', m)
+@pytest.mark.parametrize('case', ['csv_bytes', 'csv_id', 'csv_text', 'column', 'duplicate_id', 'missing_column',
+    'catalog_changed', 'catalog_missing', 'context_changed', 'duplicate_unit', 'malformed_unit', 'oversize', 'outside_storage'])
+def test_input_and_storage_fail_closed(direct_fixture, monkeypatch, case):
+    f = direct_fixture
+    if case == 'csv_bytes': f['data'] += b'\n'
+    elif case == 'csv_id': f['frame'].loc[0, 'id'] = 'FQDEMO_16_00001'
+    elif case == 'csv_text': f['frame'].loc[0, 'teks_gundul'] += ' '
+    elif case == 'column': assert r.display_units(f['data'], f['frame'], 'judul_arab') == []; return
+    elif case == 'duplicate_id': f['frame'].loc[1, 'id'] = f['frame'].loc[0, 'id']
+    elif case == 'missing_column': f['frame'].drop(columns='chunk_id', inplace=True)
+    elif case == 'catalog_changed':
+        catalog = r.load_catalog(); catalog['books'][0]['dataset']['row_count'] += 1
+        path = f['path'].parent / 'changed_catalog.json'; path.write_text(json.dumps(catalog), encoding='utf-8')
+        monkeypatch.setattr(r, 'CATALOG_PATH', path)
+    elif case == 'catalog_missing': monkeypatch.setattr(r, 'CATALOG_PATH', f['path'].parent / 'MISSING.json')
+    elif case == 'context_changed': monkeypatch.setattr(r, 'load_context', lambda book: (_ for _ in ()).throw(ValueError('Changed source hash')))
+    elif case == 'duplicate_unit': write_units(f['path'], [f['unit'], f['unit']])
+    elif case == 'malformed_unit': f['path'].write_text('{', encoding='utf-8')
+    elif case == 'oversize': f['path'].write_bytes(b'X' * (r.MAX_REFERENCE_BYTES + 1))
+    elif case == 'outside_storage': monkeypatch.setattr(r, 'ORIGINAL', f['path'].parent / 'OTHER')
     assert load(f) == []
 
 
-def test_permission_gate_precedes_any_unit_or_manifest_read(display_fixture, monkeypatch):
-    f = display_fixture
-    def blocked(*args): raise ValueError('No verified rights')
-    monkeypatch.setattr(r, '_rights', blocked)
-    with patch.object(r, '_read_document', wraps=r._read_document) as reads:
-        assert load(f) == []
-    assert [Path(c.args[0]).name for c in reads.call_args_list] == ['permission_registry.json']
-
-
-def test_rights_rechecked_without_cached_translation(display_fixture):
-    f = display_fixture
-    assert load(f)
-    write(f['local'] / 'permission_registry.json', {'status': 'user_reported_unverified'})
-    assert load(f) == []
-
-
-def test_partial_catalog_failure_keeps_valid_reference(display_fixture):
-    f = display_fixture
-    invalid = deepcopy(f['manifest']['approvals'][0])
-    invalid.update(unit_id='MISSING', file='units/missing.json')
-    f['manifest']['approvals'].append(invalid)
-    write(f['local'] / 'display/manifest.json', f['manifest'])
+def test_malformed_record_does_not_block_valid_paragraph(direct_fixture):
+    f = direct_fixture
+    with f['path'].open('a', encoding='utf-8') as stream:
+        stream.write('{malformed\n')
     assert len(load(f)) == 1
 
 
+def test_draft_change_seen_without_cached_translation(direct_fixture):
+    f = direct_fixture
+    assert load(f)
+    f['unit']['verification']['status'] = 'draft'
+    write_units(f['path'], [f['unit']])
+    assert load(f) == []
+
+
 def test_json_duplicate_keys_rejected(tmp_path):
-    path = tmp_path / 'test.json'
-    path.write_text('{"status":1,"status":2}', encoding='utf-8')
-    with pytest.raises(ValueError, match='Duplicate'): r._read_json(path)
+    path = tmp_path / 'duplicate.json'
+    path.write_text('{"id":1,"id":2}', encoding='utf-8')
+    with pytest.raises(ValueError): r._read_json(path)
 
 
-def test_real_unverified_pilot_returns_unavailable_without_reading_units():
-    path = r.ROOT / 'data/demo_fathul_qorib_per_bab/CSV/01_Thaharah.csv'
+@pytest.mark.parametrize('number', range(17))
+def test_all_demo_books_keep_identity_and_paragraph_context(number):
+    book = r.load_catalog()['books'][number]
+    path = r.DEMO / 'CSV' / book['dataset']['file']
     if not path.exists(): pytest.skip('Private demo dataset unavailable')
     data = path.read_bytes()
     frame = pd.read_csv(BytesIO(data), dtype=str, keep_default_na=False)
-    with patch.object(r, '_read_document', wraps=r._read_document) as reads:
-        assert r.display_units(data, frame, 'teks_gundul') == []
-    assert [Path(c.args[0]).name for c in reads.call_args_list] == ['permission_registry.json']
+    assert r.match_demo_book(data, frame, 'teks_gundul')['kitab_id'] == f'{number:02d}'
+    assert r.match_demo_book(data + b'\n', frame, 'teks_gundul') is None
+    context = r.load_context(book)
+    assert len(context['refs']) == len(frame)
+    assert all(row['id'] in context['refs'] for row in frame.to_dict('records'))
 
 
-@pytest.mark.parametrize('scope', ['storage', 'display'])
-def test_both_rights_scopes_required(tmp_path, scope):
-    w = r._workflow()
-    (tmp_path / 'evidence').mkdir()
-    (tmp_path / 'evidence/test_only.txt').write_text('TEST_ONLY_NOT_A_PERMISSION', encoding='utf-8')
-    registry = {'status': 'documented', 'evidence_file': 'evidence/test_only.txt'}
-    def gate(registry, source, required, local):
-        if required == scope: raise ValueError('Missing ' + scope)
-    with patch.object(w, 'check_rights', side_effect=gate):
-        with pytest.raises(ValueError): r._rights(w, registry, tmp_path)
+def test_runtime_has_no_internet_or_pilot_dependencies():
+    for filename in ('translation_reference.py', 'translation_panel.py', 'translation_prediction.py'):
+        source = (ROOT / 'streamlit_app' / filename).read_text(encoding='utf-8')
+        assert all(value not in source for value in ('external_sources', 'pilot_thaharah', 'permission_registry',
+                                                      'requests.', 'urlopen(', 'terjemahankitab.com'))
+
+
+def draftify(unit):
+    unit['translation']['origin'] = 'ai_assisted_original'
+    unit['verification'] = {key: (r.DRAFT_STATUS if key == 'status' else None)
+                            for key in unit['verification']}
+
+
+def test_preview_requires_explicit_opt_in_at_reader_and_prediction_binding(direct_fixture):
+    from translation_prediction import prediction_pairs
+    f = direct_fixture
+    draftify(f['unit'])
+    write_units(f['path'], [f['unit']])
+    assert load(f) == []
+    units = r.display_units(f['data'], f['frame'], 'teks_gundul', preview_drafts=True)
+    assert len(units) == 1
+    assert prediction_pairs(units, f['frame'], f['result']) == []
+    assert len(prediction_pairs(units, f['frame'], f['result'], preview_drafts=True)) == 1
+
+
+@pytest.mark.parametrize('case', ['wrong_hash', 'missing_target', 'wrong_paragraph', 'human_origin',
+                                 'legacy_draft', 'fake_reviewer', 'fake_review_hash', 'promoted_without_review'])
+def test_preview_preserves_identity_and_does_not_fake_verification(direct_fixture, case):
+    f = direct_fixture
+    unit = f['unit']
+    draftify(unit)
+    if case == 'wrong_hash': unit['targets'][0]['arabic_gundul_sha256'] = '0' * 64
+    elif case == 'missing_target': unit['targets'].pop()
+    elif case == 'wrong_paragraph': unit['paragraph_id'] = 'WRONG'
+    elif case == 'human_origin': unit['translation']['origin'] = 'original'
+    elif case == 'legacy_draft': unit['verification']['status'] = 'draft'
+    elif case == 'fake_reviewer': unit['verification']['reviewer'] = 'UNTRUE_REVIEW'
+    elif case == 'fake_review_hash': unit['verification']['reviewed_text_sha256'] = '0' * 64
+    elif case == 'promoted_without_review': unit['verification']['status'] = 'verified'
+    write_units(f['path'], [unit])
+    assert r.display_units(f['data'], f['frame'], 'teks_gundul', preview_drafts=True) == []
+    assert load(f) == []
+
+
+def test_real_complete_thaharah_and_repeated_titles():
+    path = r.DEMO / 'CSV/01_Thaharah.csv'
+    if not path.exists() or not r.TRANSLATIONS_PATH.exists(): pytest.skip('Local draft data unavailable')
+    data = path.read_bytes()
+    frame = pd.read_csv(BytesIO(data), dtype=str, keep_default_na=False)
+    units = r.display_units(data, frame, 'teks_gundul', preview_drafts=True)
+    assert len(units) == 317
+    covered_ids = [t['segment_id'] for u in units for t in u['targets']]
+    assert covered_ids == frame['id'].tolist() == [f'FQDEMO_01_{i:05d}' for i in range(1, 329)]
+    assert len(set(covered_ids)) == 328
+    assert len({u['paragraph_id'] for u in units}) == 317
+    assert [[t['segment_id'] for t in u['targets']] for u in units if len(u['targets']) > 1] == [
+        ['FQDEMO_01_00027', 'FQDEMO_01_00028'], ['FQDEMO_01_00043', 'FQDEMO_01_00044'],
+        ['FQDEMO_01_00061', 'FQDEMO_01_00062'], ['FQDEMO_01_00065', 'FQDEMO_01_00066'],
+        ['FQDEMO_01_00110', 'FQDEMO_01_00111'], ['FQDEMO_01_00122', 'FQDEMO_01_00123'],
+        ['FQDEMO_01_00229', 'FQDEMO_01_00230'], ['FQDEMO_01_00247', 'FQDEMO_01_00248'],
+        ['FQDEMO_01_00250', 'FQDEMO_01_00251', 'FQDEMO_01_00252'],
+        ['FQDEMO_01_00327', 'FQDEMO_01_00328']]
+    assert '00051' in units[47]['source_note']
+    by_id = {t['segment_id']: u for u in units for t in u['targets']}
+    assert by_id['FQDEMO_01_00050']['paragraph_id'] != by_id['FQDEMO_01_00051']['paragraph_id']
+    assert '00050' in by_id['FQDEMO_01_00051']['source_note']
+    assert 'lam yarudda' in by_id['FQDEMO_01_00080']['source_note']
+    assert 'tatslits' in by_id['FQDEMO_01_00098']['source_note']
+    assert by_id['FQDEMO_01_00100']['paragraph_id'] != by_id['FQDEMO_01_00101']['paragraph_id']
+    assert '00100/00101' in by_id['FQDEMO_01_00101']['source_note']
+    assert '00150/00151' in by_id['FQDEMO_01_00150']['source_note']
+    assert by_id['FQDEMO_01_00150']['paragraph_id'] != by_id['FQDEMO_01_00151']['paragraph_id']
+    assert '00150/00151' in by_id['FQDEMO_01_00151']['source_note']
+    assert '00200/00201' in by_id['FQDEMO_01_00200']['source_note']
+    assert by_id['FQDEMO_01_00200']['paragraph_id'] != by_id['FQDEMO_01_00201']['paragraph_id']
+    assert '00200/00201' in by_id['FQDEMO_01_00201']['source_note']
+    assert '00250/00251' in by_id['FQDEMO_01_00250']['source_note']
+    assert by_id['FQDEMO_01_00250'] is by_id['FQDEMO_01_00251'] is by_id['FQDEMO_01_00252']
+    assert by_id['FQDEMO_01_00252']['paragraph_id'] != by_id['FQDEMO_01_00253']['paragraph_id']
+    assert '00252/00253' in by_id['FQDEMO_01_00253']['source_note']
+    assert by_id['FQDEMO_01_00300']['paragraph_id'] != by_id['FQDEMO_01_00301']['paragraph_id']
+    assert '00300/00301' in by_id['FQDEMO_01_00300']['source_note']
+    assert by_id['FQDEMO_01_00327'] is by_id['FQDEMO_01_00328']
+    assert 'empat tahun' in by_id['FQDEMO_01_00303']['translation']['text_indonesian']
+    assert 'bukan klaim medis' in by_id['FQDEMO_01_00303']['source_note']
+    assert 'PRIORITAS' in by_id['FQDEMO_01_00270']['source_note']
+    assert 'PRIORITAS' in by_id['FQDEMO_01_00318']['source_note']
+    assert 'la yahrumu minha' in by_id['FQDEMO_01_00250']['source_note']
+    assert '00185' in by_id['FQDEMO_01_00183']['source_note']
+    assert 'PRIORITAS' in by_id['FQDEMO_01_00188']['source_note']
+    assert 'lima' in by_id['FQDEMO_01_00200']['translation']['text_indonesian']
+    assert by_id['FQDEMO_01_00200']['translation']['text_indonesian'].endswith(',')
+    assert 'enam' in by_id['FQDEMO_01_00112']['translation']['text_indonesian']
+    assert 'lima' in by_id['FQDEMO_01_00114']['translation']['text_indonesian']
+    assert 'PRIORITAS' in by_id['FQDEMO_01_00110']['source_note']
+    assert 'PRIORITAS' in by_id['FQDEMO_01_00145']['source_note']
+    assert all(u['verification']['status'] == r.DRAFT_STATUS for u in units)
+    assert all(u['translation']['origin'] == 'ai_assisted_original' for u in units)
+    assert all(u['verification']['reviewer'] is None for u in units)
+    assert units[1]['translation']['text_indonesian'] == units[8]['translation']['text_indonesian']
+    assert units[1]['paragraph_id'] != units[8]['paragraph_id']
+    assert 'daftar belum lengkap' in units[2]['source_note'].lower()
+    assert 'damah' in units[7]['translation']['text_indonesian']
+    assert 'fathah' in units[7]['source_note']
+    assert '00011' in units[9]['source_note']
+    assert r.display_units(data, frame, 'teks_gundul') == []
+
+
+def test_real_multisegment_drafts_are_not_displayed_with_partial_predictions():
+    from translation_prediction import prediction_pairs
+    path = r.DEMO / 'CSV/01_Thaharah.csv'
+    if not path.exists() or not r.TRANSLATIONS_PATH.exists(): pytest.skip('Local draft data unavailable')
+    data = path.read_bytes()
+    frame = pd.read_csv(BytesIO(data), dtype=str, keep_default_na=False)
+    units = r.display_units(data, frame, 'teks_gundul', preview_drafts=True)
+    output = frame.copy()
+    output['TEST_prediction'] = ['TEST_ONLY_' + key for key in output['id']]
+    output['TEST_status'] = 'berhasil'
+    result = {'success': True, 'input_type': 'csv', 'text_column': 'teks_gundul',
+              'dataframe': output, 'output_columns': {'prediction': 'TEST_prediction', 'status': 'TEST_status'}}
+    assert len(prediction_pairs(units, frame, result, preview_drafts=True)) == 317
+    output.loc[output['id'] == 'FQDEMO_01_00028', 'TEST_status'] = 'gagal'
+    output.loc[output['id'] == 'FQDEMO_01_00044', 'TEST_prediction'] = ''
+    output.loc[output['id'] == 'FQDEMO_01_00062', 'TEST_status'] = 'gagal'
+    output.loc[output['id'] == 'FQDEMO_01_00066', 'TEST_prediction'] = ''
+    output.loc[output['id'] == 'FQDEMO_01_00111', 'TEST_status'] = 'gagal'
+    output.loc[output['id'] == 'FQDEMO_01_00123', 'TEST_prediction'] = ''
+    output.loc[output['id'] == 'FQDEMO_01_00230', 'TEST_status'] = 'gagal'
+    output.loc[output['id'] == 'FQDEMO_01_00248', 'TEST_prediction'] = ''
+    output.loc[output['id'] == 'FQDEMO_01_00251', 'TEST_status'] = 'gagal'
+    output.loc[output['id'] == 'FQDEMO_01_00328', 'TEST_status'] = 'gagal'
+    pairs = prediction_pairs(units, frame, result, preview_drafts=True)
+    assert len(pairs) == 307
+    covered = {segment['segment_id'] for pair in pairs for segment in pair['segments']}
+    assert covered == {f'FQDEMO_01_{i:05d}' for i in range(1, 329)} - {
+        'FQDEMO_01_00027', 'FQDEMO_01_00028', 'FQDEMO_01_00043', 'FQDEMO_01_00044',
+        'FQDEMO_01_00061', 'FQDEMO_01_00062', 'FQDEMO_01_00065', 'FQDEMO_01_00066',
+        'FQDEMO_01_00110', 'FQDEMO_01_00111', 'FQDEMO_01_00122', 'FQDEMO_01_00123',
+        'FQDEMO_01_00229', 'FQDEMO_01_00230', 'FQDEMO_01_00247', 'FQDEMO_01_00248',
+        'FQDEMO_01_00250', 'FQDEMO_01_00251', 'FQDEMO_01_00252',
+        'FQDEMO_01_00327', 'FQDEMO_01_00328'}
+    output.loc[output['id'] == 'FQDEMO_01_00251', 'TEST_status'] = 'berhasil'
+    output.loc[output['id'] == 'FQDEMO_01_00252', 'TEST_status'] = 'gagal'
+    last_failed = prediction_pairs(units, frame, result, preview_drafts=True)
+    assert {s['segment_id'] for p in last_failed for s in p['segments']} == covered
+    assert prediction_pairs(units, frame, result) == []

@@ -41,6 +41,10 @@ def select(page, label, value):
             expect(option).to_be_visible(timeout=3000)
             option.click(timeout=3000)
             expect(field.get_by_role("combobox")).to_have_value(value, timeout=3000)
+            if label == "Berkas untuk pratinjau, proses ulang, atau unduh":
+                filename = value.split(". ", 1)[1]
+                expect(page.get_by_text(re.compile(r"^Berkas aktif: " + re.escape(filename) + " —"))).to_be_visible(timeout=3000)
+            expect(page.locator('[data-testid="stStatusWidget"]')).not_to_be_visible(timeout=60_000)
             break
         except (AssertionError, PlaywrightTimeoutError):
             if attempt == 2:
@@ -96,7 +100,10 @@ def run(page, base_url):
     select(page, label, "2. two.csv")
     expect(page.get_by_role("button", name="Proses Ulang Berkas", exact=True)).to_be_visible(timeout=60_000)
     assert download(page, card.get_by_role("button", name=re.compile(r"Unduh CSV$")), "two_after_add.csv") == csv_before
+    select(page, label, "4. later.txt")
     page.get_by_role("button", name="Proses Semua", exact=True).click()
+    # Wait for the NEW file's result, not the already-rendered ZIP control.
+    expect(card.get_by_role("button", name=re.compile(r"Unduh TXT$"))).to_be_visible(timeout=90_000)
     page.get_by_role("button", name="Siapkan ZIP", exact=True).click()
     zip_data = download(page, page.get_by_role("button", name="Unduh Semua (ZIP)", exact=True), "all.zip")
     rows, members = zip_rows(zip_data)
@@ -109,8 +116,13 @@ def run(page, base_url):
     txt_data = download(page, card.get_by_role("button", name=re.compile(r"Unduh TXT$")), "one.txt")
     assert txt_data == members[next(r["hasil"] for r in rows if r["berkas"] == "one.txt")]
     page.locator(".st-key-nav label").filter(has_text="Tentang Model").click()
+    expect(page.get_by_role("heading", name="Tentang Model", exact=True)).to_be_visible()
+    expect(page.locator('[data-testid="stStatusWidget"]')).not_to_be_visible(timeout=60_000)
     page.locator(".st-key-nav label").filter(has_text="Diakritisasi").click()
+    expect(page.get_by_role("heading", name="Diakritisasi Teks Arab", exact=True)).to_be_visible()
+    expect(page.locator('[data-testid="stStatusWidget"]')).not_to_be_visible(timeout=60_000)
     page.get_by_role("tab", name="Unggah TXT / CSV", exact=False).click()
+    expect(page.get_by_role("tab", name="Unggah TXT / CSV", exact=False)).to_have_attribute("aria-selected", "true")
     assert download(page, card.get_by_role("button", name=re.compile(r"Unduh TXT$")), "one_after_navigation.txt") == txt_data
     expect(page.locator('[data-testid="stException"]')).to_have_count(0)
     expect(page.locator('[data-testid="stDataFrame"] button[aria-label="Download as CSV"]')).to_have_count(0)
@@ -141,7 +153,7 @@ def run(page, base_url):
             "reupload_after_clear_has_no_stale_result": True, "mobile_no_page_overflow": True}
 
 
-def main():
+def main(app_path=None):
     OUT.mkdir(parents=True, exist_ok=True)
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
@@ -149,7 +161,7 @@ def main():
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
     result = {"status": "FAIL"}
     with (OUT / "server.log").open("w", encoding="utf-8") as log:
-        server = subprocess.Popen([sys.executable, "-B", "-m", "streamlit", "run", str(ROOT / "streamlit_app/app.py"),
+        server = subprocess.Popen([sys.executable, "-B", "-m", "streamlit", "run", str(app_path or ROOT / "streamlit_app/app.py"),
                                    "--server.address=127.0.0.1", f"--server.port={port}", "--server.headless=true",
                                    "--server.fileWatcherType=none", "--browser.gatherUsageStats=false"],
                                   cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,

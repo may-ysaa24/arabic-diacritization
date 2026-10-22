@@ -1,130 +1,228 @@
-"""Read-only, fail-closed display adapter for curated V2 reference units.
+"""V3: verified original translations, matched to exact demo paragraphs.
 
-No inference, network, translation generation, draft promotion, or export.
-Only a separate, manually approved display manifest can expose a V2 unit.
+Read-only; no internet, permission registry, inference, or automatic verification.
 """
-from functools import lru_cache
+from collections import Counter, defaultdict
+from datetime import datetime
 from hashlib import sha256
-from importlib.util import module_from_spec, spec_from_file_location
+from io import StringIO
+import csv
 import json
 from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-V2 = ROOT / 'references/fathul_qorib/pilot_thaharah_10_v2'
-VERSION = 'fqdemo-792a1dcaed5818be82452479129e6ce2d4c3a25015634f389baac44634c794b5'
-CSV_SHA256 = 'e14c1c70e9596ab28467f50c1dbae222c4663c92a46ef8dde63b424509a42e03'
+DEMO = ROOT / 'data/demo_fathul_qorib_per_bab'
+CATALOG_PATH = ROOT / 'references/fathul_qorib/dataset_version.json'
+ORIGINAL = ROOT / 'references/fathul_qorib/original'
+TRANSLATIONS_PATH = ORIGINAL / 'translations.jsonl'
+VERSION = 'fqdemo-v3-073ba6ffbf7c3a38a5cc431764719f1683f395e87275d62402c531ecd28dfabb'
 MAX_JSON_BYTES = 256 * 1024
-MAX_UNITS = 100
+MAX_REFERENCE_BYTES = 8 * 1024 * 1024
+MAX_UNITS = 3000
+DRAFT_STATUS = 'draft_needs_review'
+DRAFT_LABEL = 'Draf terjemahan berbantuan AI, belum diverifikasi'
 
 
-def is_demo_csv(dataframe, column):
-    """UI visibility hint only; this does NOT authorize reference matching."""
-    return (column == 'teks_gundul' and {'id', 'chunk_id', 'page', 'teks_gundul'} <= set(dataframe.columns)
-            and 0 < len(dataframe) <= 10000
-            and all(isinstance(value, str) and re.fullmatch(r'FQDEMO_\d{2}_\d{5}', value)
-                    for value in dataframe['id']))
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def sha_text(value):
+    return sha256(value.encode('utf-8')).hexdigest()
+
+
+def fingerprint(value):
+    return sha_text(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')))
 
 
 def _unique_object(pairs):
     result = {}
     for key, value in pairs:
-        if key in result:
-            raise ValueError('Duplicate JSON key')
+        require(key not in result, 'Duplicate JSON property')
         result[key] = value
     return result
 
 
-def _read_document(path):
+def _read_bytes(path, limit):
     with Path(path).open('rb') as stream:
-        data = stream.read(MAX_JSON_BYTES + 1)
-    if len(data) > MAX_JSON_BYTES:
-        raise ValueError('Reference metadata exceeds size limit')
-    return json.loads(data.decode('utf-8'), object_pairs_hook=_unique_object), sha256(data).hexdigest()
+        data = stream.read(limit + 1)
+    require(len(data) <= limit, 'Reference exceeds size limit')
+    return data
 
 
 def _read_json(path):
-    return _read_document(path)[0]
+    return json.loads(_read_bytes(path, MAX_JSON_BYTES).decode('utf-8'), object_pairs_hook=_unique_object)
 
 
-@lru_cache(maxsize=1)
-def _workflow():
-    # Cache code only, never rights, evidence, manifests, or translation payloads.
-    spec = spec_from_file_location('_fq_reference_workflow', V2 / 'workflow.py')
-    module = module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def is_demo_csv(dataframe, column):
+    # Visibility hint only. Exact dataset matching happens below.
+    return (column == 'teks_gundul' and dataframe.columns.is_unique
+            and {'id', 'chunk_id', 'page', 'teks_gundul'} <= set(dataframe.columns)
+            and 0 < len(dataframe) <= 10000
+            and all(isinstance(value, str) and re.fullmatch(r'FQDEMO_\d{2}_\d{5}', value)
+                    for value in dataframe['id']))
 
 
-def _rights(workflow, registry, local):
-    workflow.require(registry['status'] == 'documented', 'Permission is not documented')
-    evidence = workflow.confined(local / 'evidence', local / registry['evidence_file'])
-    workflow.require(evidence.stat().st_size <= 10 * 1024 * 1024, 'Evidence too large')
-    for scope in ('storage', 'display'):
-        workflow.check_rights(registry, 'primary', scope, local)
+def load_catalog():
+    catalog = _read_json(CATALOG_PATH)
+    require(set(catalog) == {'schema_version', 'dataset_version', 'books',
+                            'paragraph_map_sha256', 'raw_source_sha256'}, 'Unknown catalog fields')
+    require(catalog['schema_version'] == '3.0' and catalog['dataset_version'] == VERSION, 'Wrong catalog version')
+    core = {k: catalog[k] for k in ('books', 'paragraph_map_sha256', 'raw_source_sha256')}
+    require('fqdemo-v3-' + fingerprint(core) == VERSION, 'Changed dataset catalog')
+    require([b['kitab_id'] for b in catalog['books']] == [f'{i:02d}' for i in range(17)], 'Invalid book identities')
+    for book in catalog['books']:
+        name = book['dataset']['file']
+        require(isinstance(name, str) and Path(name).name == name and '/' not in name and '\\' not in name,
+                'Unsafe source filename')
+    return catalog
 
 
-def _display_units(upload_data, dataframe, column, local, workflow, context_loader):
-    """Internal injectable seam used by synthetic tests; production paths are fixed."""
-    from jsonschema import ValidationError
+def match_demo_book(upload_data, dataframe, column):
+    """Exact CSV bytes and decoded rows. A filename or a similar sentence never matches."""
+    try:
+        if not is_demo_csv(dataframe, column) or not isinstance(upload_data, bytes):
+            return None
+        require(len(upload_data) <= 5 * 1024 * 1024, 'Upload too large')
+        catalog = load_catalog()
+        book = next((b for b in catalog['books'] if b['dataset']['sha256'] == sha256(upload_data).hexdigest()), None)
+        if book is None:
+            return None
+        expected = book['dataset']
+        require(list(dataframe.columns) == expected['columns'] and len(dataframe) == expected['row_count'], 'Changed CSV shape')
+        rows = [[str(v) for v in row] for row in dataframe.itertuples(index=False, name=None)]
+        require(fingerprint(rows) == expected['rows_sha256'], 'Changed CSV rows')
+        return book
+    except (ValueError, KeyError, TypeError, AttributeError, OSError):
+        return None
 
-    if not is_demo_csv(dataframe, column) or sha256(upload_data).hexdigest() != CSV_SHA256:
-        return []
-    local = Path(local).resolve()
-    registry = _read_json(workflow.confined(local, local / 'permission_registry.json'))
-    # Gate before reading ANY reference text (including unpublished draft JSONL).
-    _rights(workflow, registry, local)
-    permission_digest = workflow.fingerprint(registry)
-    display = workflow.confined(local, local / 'display')
-    manifest = _read_json(workflow.confined(display, display / 'manifest.json'))
-    workflow.require(manifest['schema_version'] == '1.0' and manifest['dataset_version'] == VERSION
-                     and manifest['csv_sha256'] == CSV_SHA256
-                     and manifest['permission_registry_digest'] == permission_digest, 'Unapproved display catalog')
-    approvals = manifest['approvals']
-    workflow.require(isinstance(approvals, list) and 0 < len(approvals) <= MAX_UNITS, 'Invalid catalog size')
-    workflow.require(len({a['unit_id'] for a in approvals}) == len(approvals), 'Duplicate display approval')
-    context = context_loader()
-    workflow.require(context['version'] == VERSION, 'Unsupported dataset version')
-    rows = dataframe.to_dict('records')
-    workflow.require(len(rows) == len(context['demo']) and len({r['id'] for r in rows}) == len(rows), 'Changed CSV IDs')
-    for row in rows:
-        expected = context['demo'][row['id']]
-        workflow.require(all(str(row[key]) == expected[key] for key in ('id', 'chunk_id', 'page', 'teks_gundul')), 'Changed CSV target')
-    result = []
-    seen = set()
-    for approval in approvals:
-        # An approval is an explicit human display decision, independent of the
-        # V2 draft's publication_ready=false hold. It never permits redistribution.
-        try:
-            workflow.require(approval['decision'] == 'approved_for_display'
-                             and isinstance(approval['reviewer'], str) and approval['reviewer'].strip(), 'Display review required')
-            workflow.check_time(approval['reviewed_at'])
-            unit_path = workflow.confined(display / 'units', display / approval['file'])
-            unit, file_digest = _read_document(unit_path)
-            workflow.require(file_digest == approval['sha256'], 'Changed display unit')
-            workflow.require(unit['unit_id'] == approval['unit_id']
-                             and unit['permission_registry_digest'] == permission_digest
-                             and unit['verification']['status'] == 'verified', 'Ineligible reference')
-            workflow.validate_collection([unit], context)
-            ids = [target['segment_id'] for target in unit['targets']]
-            workflow.require(not (seen & set(ids)), 'Overlapping display units')
-            seen.update(ids)
-            result.append(unit)
-        except (ValueError, KeyError, TypeError, OSError, ValidationError):
-            # A bad approved file must not expose its text or block other units.
-            continue
-    # Recheck rights after IO. No session/global cache can retain a revoked grant.
-    current = _read_json(workflow.confined(local, local / 'permission_registry.json'))
-    workflow.require(workflow.fingerprint(current) == permission_digest, 'Permission changed during read')
-    _rights(workflow, current, local)
+
+def _csv(path, digest):
+    data = _read_bytes(path, MAX_REFERENCE_BYTES)
+    require(sha256(data).hexdigest() == digest, 'Changed local dataset source')
+    return list(csv.DictReader(StringIO(data.decode('utf-8-sig'), newline='')))
+
+
+def _index(rows, key):
+    result = {row[key]: row for row in rows}
+    require(len(result) == len(rows), 'Duplicate source identity')
     return result
 
 
-def display_units(upload_data, dataframe, column):
-    """Return eligible whole-paragraph units, or an empty list without text leakage."""
+def load_context(book):
+    """Reuse the existing local Arabic reference, paragraph map and raw source."""
+    catalog = load_catalog()
+    name = book['dataset']['file']
+    demo = _index(_csv(DEMO / 'CSV' / name, book['dataset']['sha256']), 'id')
+    refs = _index(_csv(DEMO / 'Referensi_Berharakat' / name, book['arabic_reference_sha256']), 'id')
+    require(set(demo) == set(refs), 'CSV/reference IDs differ')
+    raw_rows = _csv(DEMO / 'Laporan_Audit/Sumber/dataset_drive.csv', catalog['raw_source_sha256'])
+    raw = _index(raw_rows, 'page')
+    pmap = _index(_csv(DEMO / 'Laporan_Audit/PETA_PARAGRAF.csv', catalog['paragraph_map_sha256']), 'paragraph_id')
+    paragraphs = defaultdict(list)
+    for row in refs.values():
+        paragraphs[row['paragraph_id']].append(row)
+    context = {'version': VERSION, 'demo': demo, 'refs': refs, 'raw': raw,
+               'raw_rows': raw_rows, 'paragraph_map': pmap, 'paragraphs': dict(paragraphs)}
+    for paragraph_id, rows in paragraphs.items():
+        rows.sort(key=lambda row: int(row['source_start']))
+        p = pmap[paragraph_id]
+        require(int(p['kitab_id']) == int(book['kitab_id']), 'Paragraph belongs to another book')
+        targets = [target_for(row['id'], context) for row in rows]
+        require(targets[0]['source_span']['start'] == int(p['source_start'])
+                and targets[-1]['source_span']['end_exclusive'] == int(p['source_end_exclusive'])
+                and all(a['source_span']['end_exclusive'] == b['source_span']['start']
+                        for a, b in zip(targets, targets[1:])), 'Incomplete paragraph coverage')
+    return context
+
+
+def target_for(segment_id, context):
+    r, d = context['refs'][segment_id], context['demo'][segment_id]
+    p = context['paragraph_map'][r['paragraph_id']]
+    page = context['raw'][r['page']]['text_diacritized']
+    start, end = int(r['source_start']), int(r['source_end_exclusive'])
+    pa, pb = int(p['source_start']), int(p['source_end_exclusive'])
+    require(r['page'] == d['page'] == p['page'] and r['chunk_id'] == d['chunk_id'], 'Page/chunk mismatch')
+    require(r['teks_gundul'] == d['teks_gundul'], 'Bare text mismatch')
+    require(pa <= start < end <= pb <= len(page) and page[start:end] == r['text_diacritized'], 'Invalid Arabic source span')
+    require(sha_text(page[pa:pb]) == p['source_sha256'], 'Paragraph hash mismatch')
+    source_record = int(r['source_record_1based'])
+    require(0 < source_record <= len(context['raw_rows'])
+            and context['raw_rows'][source_record - 1]['page'] == r['page']
+            and source_record == int(p['source_record_1based']), 'Wrong source record')
+    return {'segment_id': segment_id, 'paragraph_id': r['paragraph_id'], 'chunk_id': r['chunk_id'],
+            'pdf_page': int(r['page']), 'source_record_1based': source_record,
+            'source_span': {'start': start, 'end_exclusive': end},
+            'arabic_text_sha256': sha_text(r['text_diacritized']), 'arabic_gundul_sha256': sha_text(r['teks_gundul'])}
+
+
+def validate_unit(unit, context, *, preview_drafts=False):
+    """The same exact paragraph checks apply to final and opt-in draft reading."""
+    fields = {'schema_version', 'unit_id', 'dataset_version', 'paragraph_id', 'section',
+              'targets', 'target_digest', 'translation', 'verification'}
+    require(set(unit) in (fields, fields | {'source_note'}), 'Unknown unit fields')
+    require(isinstance(unit.get('source_note', ''), str) and len(unit.get('source_note', '')) <= 4000,
+            'Invalid source note')
+    require(unit['schema_version'] == '3.0' and unit['dataset_version'] == context['version'] == VERSION, 'Wrong unit version')
+    paragraph_id = unit['paragraph_id']
+    require(unit['unit_id'] == 'FQTR3_' + paragraph_id, 'Unit/paragraph mismatch')
+    rows = context['paragraphs'][paragraph_id]
+    targets = [target_for(row['id'], context) for row in rows]
+    require(unit['targets'] == targets and unit['target_digest'] == fingerprint(targets), 'Wrong paragraph targets')
+    require(isinstance(unit['section'], str) and len(unit['section']) <= 500, 'Invalid section label')
+    translation, review = unit['translation'], unit['verification']
+    require(set(translation) == {'origin', 'text_indonesian', 'translator'}
+            and translation['origin'] in ('original', 'ai_assisted_original'), 'Original authorship required')
+    text = translation['text_indonesian']
+    require(isinstance(text, str) and 0 < len(text.strip()) <= 50000
+            and isinstance(translation['translator'], str) and translation['translator'].strip(), 'Missing original text/author')
+    require(set(review) == {'status', 'reviewer', 'reviewed_at', 'reviewed_text_sha256', 'reviewed_target_digest'}, 'Invalid review fields')
+    if preview_drafts and review['status'] == DRAFT_STATUS:
+        require(translation['origin'] == 'ai_assisted_original'
+                and all(review[key] is None for key in review if key != 'status'),
+                'Draft cannot claim completed human verification')
+        return
+    require(review['status'] == 'verified' and isinstance(review['reviewer'], str) and review['reviewer'].strip(), 'Human verification required')
+    require(isinstance(review['reviewed_at'], str) and datetime.fromisoformat(review['reviewed_at'].replace('Z', '+00:00')).tzinfo is not None, 'Missing zoned review date')
+    require(review['reviewed_text_sha256'] == sha_text(text)
+            and review['reviewed_target_digest'] == fingerprint(targets), 'Review is stale')
+
+
+def display_units(upload_data, dataframe, column, *, preview_drafts=False):
+    """Final references by default; explicit local preview may include labeled drafts."""
     try:
-        workflow = _workflow()
-        return _display_units(upload_data, dataframe, column, V2 / '.local', workflow,
-                              lambda: workflow.load_context(ROOT, V2.parent / 'pilot_thaharah_10'))
-    except (ValueError, KeyError, TypeError, OSError, ImportError, AttributeError):
+        book = match_demo_book(upload_data, dataframe, column)
+        if book is None or not TRANSLATIONS_PATH.exists():
+            return []
+        require(TRANSLATIONS_PATH.resolve().is_relative_to(ORIGINAL.resolve()), 'Translation outside original storage')
+        data = _read_bytes(TRANSLATIONS_PATH, MAX_REFERENCE_BYTES)
+        lines = data.decode('utf-8').splitlines()
+        require(len(lines) <= MAX_UNITS, 'Too many reference units')
+        units = []
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                require(len(line.encode('utf-8')) <= MAX_JSON_BYTES, 'Unit too large')
+                unit = json.loads(line, object_pairs_hook=_unique_object)
+                if isinstance(unit, dict):
+                    units.append(unit)
+            except (ValueError, TypeError):
+                continue
+        ids = Counter(u.get('unit_id') for u in units if isinstance(u.get('unit_id'), str))
+        paragraphs = Counter(u.get('paragraph_id') for u in units if isinstance(u.get('paragraph_id'), str))
+        context = load_context(book)
+        result = []
+        for unit in units:
+            try:
+                require(ids[unit['unit_id']] == 1 and paragraphs[unit['paragraph_id']] == 1, 'Conflicting units')
+                validate_unit(unit, context, preview_drafts=preview_drafts)
+                result.append(unit)
+            except (ValueError, TypeError, KeyError, AttributeError):
+                continue
+        result.sort(key=lambda unit: (unit['targets'][0]['source_record_1based'], unit['targets'][0]['source_span']['start']))
+        return result
+    except (ValueError, KeyError, TypeError, AttributeError, OSError):
         return []
