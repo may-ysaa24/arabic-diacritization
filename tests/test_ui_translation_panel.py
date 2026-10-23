@@ -73,7 +73,9 @@ def test_panel_is_lazy_and_repeated_open_does_not_infer_or_change_exports():
         assert app.session_state.file_result is None
         app.button(key='process_file').click().run()
         assert infer.call_count == 2
-        assert not any(e.label == 'Lihat Terjemahan Mandiri' for e in app.expander)
+        assert any(e.label == 'Lihat Terjemahan Mandiri' for e in app.expander)
+        open_panel(app, file_id)
+        assert any(e.value == 'Terjemahan belum tersedia' for e in app.info)
 
 
 def test_panel_rejects_unbound_reference_and_never_exports_it():
@@ -107,14 +109,16 @@ def test_multifile_panel_stays_with_active_file_and_manual_txt_are_unchanged():
         assert infer.call_count == 3
         before = {k: v['file_result']['download_bytes'] for k, v in app.session_state.upload_files.items()}
         app.selectbox(key='_active_file').select(txt).run()
-        assert not any(e.label == 'Lihat Terjemahan Mandiri' for e in app.expander)
+        assert any(e.label == 'Lihat Terjemahan Mandiri' for e in app.expander)
+        open_panel(app, txt)
+        assert any(e.value == 'Terjemahan belum tersedia' for e in app.info)
         app.selectbox(key='_active_file').select(first).run()
         open_panel(app, first)
         app.selectbox(key='_active_file').select(second).run()
         assert app.session_state.filtered_state.get(f'translation_reference_{second}', False) is False
         open_panel(app, second)
         app.selectbox(key='_active_file').select(txt).run()
-        assert not any(e.label == 'Lihat Terjemahan Mandiri' for e in app.expander)
+        assert any(e.label == 'Lihat Terjemahan Mandiri' for e in app.expander)
         app.text_area(key='_manual_input').input('الحمد لله').run()
         app.button(key='process_manual').click().run()
         assert app.session_state.manual_result['success']
@@ -127,7 +131,8 @@ def test_multifile_panel_stays_with_active_file_and_manual_txt_are_unchanged():
         assert not app.session_state.filtered_state.get(f'translation_reference_{first}', False)
         app.button(key='reset_all_files').click().run()
         assert not app.session_state.upload_files
-        assert not any(e.label == 'Lihat Terjemahan Mandiri' for e in app.expander)
+        assert app.session_state.file_result is None
+        assert app.session_state.manual_result['success']
 
 
 
@@ -214,7 +219,7 @@ def test_real_complete_thaharah_pagination_model_arabic_and_exports_are_independ
         app.selectbox(key='_active_file').select(txt).run()
         app.button(key='process_all_files').click().run()
         assert infer.call_count == 2 and app.session_state.file_result['success']
-        assert not any(e.label == 'Lihat Terjemahan Mandiri' for e in app.expander)
+        assert any(e.label == 'Lihat Terjemahan Mandiri' for e in app.expander)
         app.selectbox(key='_active_file').select(file_id).run()
         open_panel(app, file_id)
         assert app.checkbox(key=key).value is False  # No global opt-in carried from another file.

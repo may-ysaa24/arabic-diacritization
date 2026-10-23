@@ -974,6 +974,9 @@ def render_manual():
             with st.container(key="manual_result_payload"):
                 if current:
                     show_prediction(result, "manual", original_text=st.session_state.manual_result_input)
+                    if result.get("success"):
+                        render_reference_panel(None, None, None, "manual", result,
+                                               source_text=st.session_state.manual_result_input)
                 else:
                     empty_output()
                     result_actions("", "manual", disabled=True)
@@ -1303,10 +1306,10 @@ def render_file():
             result = st.session_state.file_result
             if result and validation.get("success") and st.session_state.file_result_signature == signature:
                 render_file_result(result, snapshot["name"])
-                if (result.get("success") and result.get("input_type") == "csv"
-                        and reference.is_demo_csv(validation["dataframe"], selected_column)):
-                    render_reference_panel(snapshot["data"], validation["dataframe"], selected_column,
-                                           st.session_state.active_upload_id or snapshot["digest"], result)
+                if result.get("success"):
+                    render_reference_panel(snapshot["data"], validation.get("dataframe"), selected_column,
+                                           st.session_state.active_upload_id or snapshot["digest"], result,
+                                           source_text=validation.get("text"))
             else:
                 empty_output("Pilih berkas TXT atau CSV yang valid, lalu jalankan Proses Diakritisasi.")
         if scroll_request:

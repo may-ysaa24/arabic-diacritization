@@ -22,6 +22,7 @@ MAX_REFERENCE_BYTES = 8 * 1024 * 1024
 MAX_UNITS = 3000
 DRAFT_STATUS = 'draft_needs_review'
 DRAFT_LABEL = 'Draf terjemahan berbantuan AI, belum diverifikasi'
+CONTENT_DRAFT_LABEL = 'Draf terjemahan, belum diverifikasi'
 
 
 def require(condition, message):
@@ -190,27 +191,33 @@ def validate_unit(unit, context, *, preview_drafts=False):
             and review['reviewed_target_digest'] == fingerprint(targets), 'Review is stale')
 
 
+def read_units():
+    """Bounded original records; eligibility is always checked by validate_unit."""
+    require(TRANSLATIONS_PATH.resolve().is_relative_to(ORIGINAL.resolve()), 'Translation outside original storage')
+    data = _read_bytes(TRANSLATIONS_PATH, MAX_REFERENCE_BYTES)
+    lines = data.decode('utf-8').splitlines()
+    require(len(lines) <= MAX_UNITS, 'Too many reference units')
+    units = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            require(len(line.encode('utf-8')) <= MAX_JSON_BYTES, 'Unit too large')
+            unit = json.loads(line, object_pairs_hook=_unique_object)
+            if isinstance(unit, dict):
+                units.append(unit)
+        except (ValueError, TypeError):
+            continue
+    return units
+
+
 def display_units(upload_data, dataframe, column, *, preview_drafts=False):
     """Final references by default; explicit local preview may include labeled drafts."""
     try:
         book = match_demo_book(upload_data, dataframe, column)
         if book is None or not TRANSLATIONS_PATH.exists():
             return []
-        require(TRANSLATIONS_PATH.resolve().is_relative_to(ORIGINAL.resolve()), 'Translation outside original storage')
-        data = _read_bytes(TRANSLATIONS_PATH, MAX_REFERENCE_BYTES)
-        lines = data.decode('utf-8').splitlines()
-        require(len(lines) <= MAX_UNITS, 'Too many reference units')
-        units = []
-        for line in lines:
-            if not line.strip():
-                continue
-            try:
-                require(len(line.encode('utf-8')) <= MAX_JSON_BYTES, 'Unit too large')
-                unit = json.loads(line, object_pairs_hook=_unique_object)
-                if isinstance(unit, dict):
-                    units.append(unit)
-            except (ValueError, TypeError):
-                continue
+        units = read_units()
         ids = Counter(u.get('unit_id') for u in units if isinstance(u.get('unit_id'), str))
         paragraphs = Counter(u.get('paragraph_id') for u in units if isinstance(u.get('paragraph_id'), str))
         context = load_context(book)

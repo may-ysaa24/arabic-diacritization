@@ -152,8 +152,9 @@ def test_ui_actual_gates_model_predictions_columns_and_exports(direct_fixture):
         assert before == app.session_state.file_result['download_bytes']
         with ZipFile(BytesIO(app.session_state.queue_zip)) as archive:
             assert all(SENTINEL.encode() not in archive.read(name) for name in archive.namelist())
-        # Another active CSV with one changed ID must never inherit the text.
-        other = upload(app, 'OTHER.csv', f['data'].replace(b'00002', b'00003'))
+        # A corrupted target identity must never inherit the whole paragraph.
+        target_id = f['unit']['targets'][0]['segment_id'].encode()
+        other = upload(app, 'OTHER.csv', f['data'].replace(target_id, b'FQDEMO_01_99999'))
         app.button(key='process_all_files').click().run()
         assert infer.call_count == 2
         app.selectbox(key='_active_file').select(other).run()

@@ -3,6 +3,7 @@ import streamlit as st
 
 import translation_reference as reference
 from translation_prediction import prediction_pairs
+from translation_matching import lookup
 
 PAGE_SIZE = 10
 
@@ -40,8 +41,11 @@ def paged_pairs(pairs, file_key, preview):
 
 
 @st.fragment
-def render_reference_panel(upload_data, dataframe, column, file_key, result=None):
-    sync_reference_file(file_key)
+def render_reference_panel(upload_data, dataframe, column, file_key, result=None, *, source_text=None):
+    # Both input tabs render on a full app rerun. Manual pagination must not
+    # reset the active upload's independent pagination state.
+    if file_key != 'manual':
+        sync_reference_file(file_key)
     panel = st.expander('Lihat Terjemahan Mandiri', expanded=False,
                         key=f'translation_reference_{file_key}', on_change='rerun')
     if not panel.open:
@@ -53,17 +57,40 @@ def render_reference_panel(upload_data, dataframe, column, file_key, result=None
                               key=f'translation_reference_draft_{file_key}')
         if preview:
             st.warning(reference.DRAFT_LABEL)
-        units = (reference.display_units(upload_data, dataframe, column, preview_drafts=True)
-                 if preview else reference.display_units(upload_data, dataframe, column))
-        pairs = prediction_pairs(units, dataframe, result, preview_drafts=preview)
+            st.caption(reference.CONTENT_DRAFT_LABEL)
+        exact_demo = (dataframe is not None
+                      and reference.match_demo_book(upload_data, dataframe, column) is not None)
+        if dataframe is not None:
+            # Preserve the existing exact CSV path and its final/draft gates.
+            units = (reference.display_units(upload_data, dataframe, column, preview_drafts=True)
+                     if preview else reference.display_units(upload_data, dataframe, column))
+        if exact_demo:
+            pairs = prediction_pairs(units, dataframe, result, preview_drafts=preview)
+        else:
+            report = lookup(result, dataframe=dataframe, column=column, text=source_text,
+                            preview_drafts=preview)
+            pairs = report['pairs']
+            labels = {'tersedia': 'terjemahan ditampilkan', 'ambigu': 'ambigu; identitas belum pasti',
+                      'tidak_cocok': 'tidak cocok dengan referensi kanonis',
+                      'prediksi_tidak_sesuai': 'prediksi tersimpan tidak sesuai',
+                      'paragraf_tidak_lengkap': 'paragraf tidak lengkap atau berulang',
+                      'belum_terverifikasi': 'draf tersedia; aktifkan pratinjau lokal',
+                      'terjemahan_belum_tersedia': 'teks kanonis ditemukan; terjemahan belum tersedia'}
+            if report.get('error'):
+                st.warning(report['error'])
+            if report['counts']:
+                st.caption('Cakupan pencocokan: ' + '; '.join(
+                    f'{count} bagian {labels[status]}' for status, count in report['counts'].items()))
+            st.caption('Pencocokan hanya untuk paragraf lengkap. Bagian yang ambigu, parsial, '
+                       'atau belum memiliki referensi tidak diterjemahkan. Tidak memakai kemiripan kalimat.')
         visible_pairs = paged_pairs(pairs, file_key, preview)
         if not pairs:
             st.info('Terjemahan belum tersedia')
         else:
-            covered = sum(len(pair['segments']) for pair in pairs)
+            covered = sum(pair.get('input_parts', len(pair['segments'])) for pair in pairs)
             drafts = sum(pair['unit']['verification']['status'] == reference.DRAFT_STATUS for pair in pairs)
             st.caption(f'{len(pairs)} paragraf · {drafts} draf · {len(pairs) - drafts} terverifikasi · '
-                       f'{covered} dari {len(dataframe)} segmen. '
+                       f'{covered} dari {len(dataframe) if dataframe is not None else report["total"]} bagian masukan. '
                        'Segmen lainnya: Terjemahan belum tersedia.')
             for pair in visible_pairs:
                 unit = pair['unit']
