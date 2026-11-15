@@ -98,14 +98,14 @@ def run(page, base_url):
     # while a newly selected file is still arriving at the server.
     select(page, label, "4. later.txt")
     select(page, label, "2. two.csv")
-    expect(page.get_by_role("button", name="Proses Ulang Berkas", exact=True)).to_be_visible(timeout=60_000)
+    expect(page.get_by_role("button", name="Proses Diakritisasi", exact=True)).to_be_visible(timeout=60_000)
     assert download(page, card.get_by_role("button", name=re.compile(r"Unduh CSV$")), "two_after_add.csv") == csv_before
     select(page, label, "4. later.txt")
     page.get_by_role("button", name="Proses Semua", exact=True).click()
     # Wait for the NEW file's result, not the already-rendered ZIP control.
     expect(card.get_by_role("button", name=re.compile(r"Unduh TXT$"))).to_be_visible(timeout=90_000)
-    page.get_by_role("button", name="Siapkan ZIP", exact=True).click()
-    zip_data = download(page, page.get_by_role("button", name="Unduh Semua (ZIP)", exact=True), "all.zip")
+    page.get_by_role("button", name=re.compile(r"Siapkan ZIP$")).click()
+    zip_data = download(page, page.get_by_role("button", name=re.compile(r"Unduh Semua \(ZIP\)$")), "all.zip")
     rows, members = zip_rows(zip_data)
     print("Additive upload and ZIP downloaded", flush=True)
     assert len(rows) == 4 and [r["status"] for r in rows].count("Selesai") == 3
@@ -133,15 +133,15 @@ def run(page, base_url):
     page.set_viewport_size({"width": 1440, "height": 1000})
     select(page, label, "2. two.csv")
     page.get_by_role("button", name=re.compile(r"Hapus Berkas$")).click()
-    expect(page.get_by_role("button", name="Unduh Semua (ZIP)", exact=True)).to_have_count(0)
-    page.get_by_role("button", name="Siapkan ZIP", exact=True).click()
-    remaining = download(page, page.get_by_role("button", name="Unduh Semua (ZIP)", exact=True), "after_delete.zip")
+    expect(page.get_by_role("button", name=re.compile(r"Unduh Semua \(ZIP\)$"))).to_have_count(0)
+    page.get_by_role("button", name=re.compile(r"Siapkan ZIP$")).click()
+    remaining = download(page, page.get_by_role("button", name=re.compile(r"Unduh Semua \(ZIP\)$")), "after_delete.zip")
     remaining_rows, _ = zip_rows(remaining)
     assert len(remaining_rows) == 3 and "two.csv" not in {r["berkas"] for r in remaining_rows}
     page.get_by_role("button", name=re.compile(r"Hapus Semua$")).click()
     expect(page.get_by_text(label, exact=True)).to_have_count(0)
     expect(page.get_by_role("button", name="Proses Diakritisasi", exact=True)).to_be_disabled()
-    expect(page.get_by_role("button", name="Unduh Semua (ZIP)", exact=True)).to_have_count(0)
+    expect(page.get_by_role("button", name=re.compile(r"Unduh Semua \(ZIP\)$"))).to_have_count(0)
     picker.set_input_files([payload("one.txt", TEXT)])
     expect(page.get_by_text(label, exact=True)).to_be_visible()
     expect(page.get_by_role("button", name="Proses Diakritisasi", exact=True)).to_be_enabled()

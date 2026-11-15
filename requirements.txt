@@ -1,5 +1,10 @@
 # Python 3.12 target
+# Install the src-layout backend when Community Cloud builds this repository.
+-e .
 streamlit==1.63.0
 pandas==2.2.3
 pytorch-crf==0.7.2
-torch>=2.2,<3.0
+# Match the tested inference runtime; avoid CUDA dependencies on Community Cloud.
+# A direct wheel keeps all other dependencies on the normal package index.
+torch @ https://download.pytorch.org/whl/cpu/torch-2.14.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl ; sys_platform == "linux" and python_version == "3.12" and platform_machine == "x86_64"
+torch==2.14.1 ; sys_platform != "linux" or python_version != "3.12" or platform_machine != "x86_64"

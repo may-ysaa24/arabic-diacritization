@@ -128,7 +128,7 @@ def test_identical_titles_keep_independent_ids_and_partial_failure(direct_fixtur
 
 
 def test_ui_actual_gates_model_predictions_columns_and_exports(direct_fixture):
-    from test_ui_translation_panel import app_ready, upload, open_panel
+    from test_ui_translation_panel import app_ready, upload, open_panel, readable_values, has_text
     import inference_engine as backend
     f = direct_fixture
     app = app_ready()
@@ -142,10 +142,14 @@ def test_ui_actual_gates_model_predictions_columns_and_exports(direct_fixture):
         assert all(predictions)
         for _ in range(2):
             open_panel(app, file_id)
-            assert len([e for e in app.text if e.value == SENTINEL]) == 1
-            assert all(any(e.value == value for e in app.text) for value in predictions)
+            assert readable_values(app).count(SENTINEL) == 1
+            assert all(has_text(app, value) for value in predictions)
             assert len(app.columns) >= 2 and not app.exception
-            assert any(f['unit']['paragraph_id'] in e.value for e in app.text)
+            # Identity remains enforced internally; technical IDs are no longer
+            # part of the result presentation. The forged-ID case below still
+            # proves that a different target cannot inherit this translation.
+            assert not any(f['unit']['paragraph_id'] in e.value for e in app.text)
+            assert not any(e.label == 'Detail Referensi' for e in app.expander)
             open_panel(app, file_id, False)
         app.button(key='prepare_queue_zip').click().run()
         assert infer.call_count == 1
@@ -159,15 +163,15 @@ def test_ui_actual_gates_model_predictions_columns_and_exports(direct_fixture):
         assert infer.call_count == 2
         app.selectbox(key='_active_file').select(other).run()
         open_panel(app, other)
-        assert not any(e.value == SENTINEL for e in app.text)
+        assert not has_text(app, SENTINEL)
         assert any(e.value == 'Terjemahan belum tersedia' for e in app.info)
         app.selectbox(key='_active_file').select(file_id).run()
         open_panel(app, file_id)
-        assert any(e.value == SENTINEL for e in app.text)
+        assert has_text(app, SENTINEL)
         f['unit']['verification']['status'] = 'draft'
         write_units(f['path'], [f['unit']])
         open_panel(app, file_id, False)
         open_panel(app, file_id)
-        assert not any(e.value == SENTINEL for e in app.text)
+        assert not has_text(app, SENTINEL)
         assert any(e.value == 'Terjemahan belum tersedia' for e in app.info)
         assert infer.call_count == 2

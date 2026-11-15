@@ -22,7 +22,12 @@ import streamlit as st
 from file_safety import spreadsheet_safe_csv, txt_control_error
 import upload_queue as queue
 import translation_reference as reference
-from translation_panel import render_reference_panel, sync_reference_file
+import translation_exports as v3_exports
+from translation_panel import render_reference_panel, sync_reference_file, reset_reference_pages, ARABIC_VIEW, TRANSLATION_VIEW
+from result_presentation import arabic_markup, success_summary_markup
+import input_design
+import upload_design
+import page_design
 
 
 # Streamlit sends frontend configuration before executing this script. Bootstrap
@@ -72,7 +77,7 @@ CSS = """
   --ui-content-width:1240px;
   --ui-workspace-width:1040px;
   --ui-page-title:clamp(1.65rem,2.3vw,2rem);
-  --ui-control-height:40px;
+  --ui-control-height:44px;
   --arabic:"Noto Naskh Arabic","Amiri","Scheherazade New","Traditional Arabic","DejaVu Sans",serif;
   --sans:"Segoe UI",system-ui,Arial,sans-serif;
   --serif:"Georgia","Cambria","Times New Roman",serif;
@@ -81,14 +86,17 @@ html,body {font-family:var(--sans)}
 .stApp {background:var(--canvas);color:var(--ink)}
 [data-testid="stHeader"] {background:transparent}
 .stMainBlockContainer {max-width:var(--ui-content-width);padding:1rem 1.4rem 1.5rem}
-.stApp [data-testid="stSidebar"] {background:var(--sidebar);border-right:1px solid var(--border)}
+.stApp [data-testid="stSidebar"] {background:var(--sidebar);border-right:1px solid #BED6C7}
+/* Line separators are decorative overlays: logo and menu geometry stay intact. */
+.stApp [data-testid="stSidebar"][aria-expanded="true"]::after {content:"";position:absolute;top:0;bottom:0;right:0;width:1px;background:#D5BD82;opacity:.8;pointer-events:none}
 .stApp [data-testid="stSidebar"][aria-expanded="true"] {width:var(--ui-sidebar-width);min-width:var(--ui-sidebar-width);max-width:var(--ui-sidebar-width)}
 [data-testid="stSidebarHeader"] {height:20px;min-height:20px}
 [data-testid="stSidebar"] [data-testid="stElementContainer"]:has([data-testid="stImage"]) {align-self:center}
 [data-testid="stAppDeployButton"] {display:none}
 [data-testid="stSidebarUserContent"] {padding:1rem 1.15rem 1.1rem}
-[data-testid="stSidebar"] [data-testid="stImage"] {margin:0 auto .1rem}
-.brand-university {font:700 1.03rem/1.4 var(--serif);text-align:center;color:var(--ink);margin:.35rem -.4rem .9rem}
+[data-testid="stSidebar"] [data-testid="stImage"] {position:relative;margin:0 auto .65rem;max-width:100%}
+[data-testid="stSidebar"] [data-testid="stImage"]::after {content:"";position:absolute;left:50%;bottom:-18px;width:120%;max-width:180px;height:1px;background:#C9AD6D;transform:translateX(-50%);pointer-events:none}
+[data-testid="stSidebar"] [data-testid="stImage"] img {max-width:100%;height:auto}
 .brand-rule {width:38px;height:3px;border-radius:3px;background:var(--gold);margin:0 0 1.1rem}
 .brand-kicker,.eyebrow {font-size:.72rem;line-height:1.5;font-weight:650;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 .6rem}
 .brand-title {font:700 1.23rem/1.35 var(--serif);color:var(--ink);letter-spacing:-.02em;margin-bottom:1.25rem}
@@ -325,6 +333,30 @@ button:focus-visible,a:focus-visible,textarea:focus-visible {outline:3px solid v
 [class*="st-key-example_panel_"] {padding:1rem 1.1rem}
 .st-key-process_manual button,.st-key-process_file button {gap:.45rem;justify-content:center}
 .st-key-process_manual button > div,.st-key-process_file button > div {flex:0 1 auto;width:auto}
+/* Result-only presentation: keep native controls, table scrolling, and app navigation. */
+.st-key-manual_result_card,.st-key-file_result_card {background:#fff}
+.st-key-diak_page [class*="st-key-translation_reference_view_"] {margin:.5rem 0 1rem}
+.st-key-diak_page [class*="st-key-translation_reference_view_"] button {min-height:44px;white-space:normal}
+.st-key-diak_page [class*="st-key-translation_card_"] {padding:1.1rem;border:1px solid var(--border);border-radius:14px;background:#fff}
+.st-key-diak_page [class*="st-key-translation_columns_"] {container-type:inline-size;min-width:0}
+.st-key-diak_page [class*="st-key-translation_columns_"] [data-testid="stColumn"] {min-width:0}
+.st-key-diak_page [class*="st-key-translation_columns_"] .arabic-text {font-size:clamp(1.65rem,2.1vw,1.95rem);line-height:2.3;padding:.25rem 0 .55rem;overflow:visible}
+.st-key-diak_page .translation-indonesian {font-family:var(--sans);font-size:1rem;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink);padding:.25rem 0 .55rem}
+.st-key-diak_page .arabic-csv-reader {border:1px solid var(--border);border-radius:12px;padding:.25rem 1rem;max-height:640px;overflow-y:auto;min-width:0}
+.st-key-diak_page .arabic-csv-row {padding:.8rem 0;border-bottom:1px solid var(--border);min-width:0}
+.st-key-diak_page .arabic-csv-row:last-child {border-bottom:0}
+.st-key-diak_page .csv-row-label {font:500 .8rem/1.7 var(--sans);color:var(--muted);margin-bottom:.3rem}
+.st-key-diak_page [class*="st-key-translation_card_"] [data-testid="stExpander"] {margin-top:.6rem}
+.st-key-diak_page [class*="st-key-translation_card_"] [data-testid="stExpander"] pre {white-space:pre-wrap;overflow-wrap:anywhere}
+@container(max-width:680px){
+  .st-key-diak_page [class*="st-key-translation_columns_"] [data-testid="stHorizontalBlock"] {flex-direction:column-reverse;gap:1.15rem}
+  .st-key-diak_page [class*="st-key-translation_columns_"] [data-testid="stColumn"] {width:100%;flex:1 1 auto}
+}
+@media(max-width:780px){
+  .st-key-diak_page [class*="st-key-translation_columns_"] [data-testid="stHorizontalBlock"] {flex-direction:column-reverse;gap:1.15rem}
+  .st-key-diak_page [class*="st-key-translation_columns_"] [data-testid="stColumn"] {width:100%;flex:1 1 auto}
+  .st-key-diak_page [class*="st-key-translation_card_"] {padding:.85rem}
+}
 @media(max-width:780px){
   :root {--ui-control-height:44px}
 }
@@ -341,6 +373,7 @@ button:focus-visible,a:focus-visible,textarea:focus-visible {outline:3px solid v
 </style>
 """
 st.html(CSS)
+st.html(page_design.CSS)
 
 
 @st.cache_resource(show_spinner="Memeriksa kesiapan model…")
@@ -372,6 +405,10 @@ for state_key, default in {
     if state_key not in st.session_state:
         st.session_state[state_key] = default
 
+# Retire removed upload-layout controls without resetting processing state.
+for retired_ui_key in ("upload_visual_mode", "upload_active_settings", "upload_processing_details"):
+    st.session_state.pop(retired_ui_key, None)
+
 
 def clear_manual_correction():
     widget_key = f"_manual_correction_{st.session_state.manual_correction_generation}"
@@ -383,6 +420,10 @@ def clear_manual_correction():
 
 def restore_model_result():
     clear_manual_correction()
+
+
+def request_correction_editor():
+    st.session_state['manual_correction_editor'] = True
 
 
 def apply_manual_correction(widget_key, generation):
@@ -532,13 +573,15 @@ def heading(kicker, title, description):
 
 
 def arabic(text, result=False):
-    class_name = "arabic-text arabic-result" if result else "arabic-text"
-    st.html(f'<div class="{class_name}" lang="ar" dir="rtl">{escape(str(text))}</div>')
+    st.html(arabic_markup(text, result=result))
 
 
-def card_heading(number, title):
+def card_heading(number, title, subtitle=None, count=None):
+    description = f'<p>{escape(subtitle)}</p>' if subtitle else ''
+    counter = (f'<span class="manual-char-count"><span id="manual_char_count">{count:,}</span> karakter</span>'
+               if count is not None else '')
     st.html(f'<header class="workspace-card-heading"><span class="step-number">{escape(number)}</span>'
-            f'<h2>{escape(title)}</h2></header>')
+            f'<div><h2>{escape(title)}</h2>{description}</div>{counter}</header>')
 
 
 def empty_output(message="Masukkan teks Arab, kemudian pilih Proses Diakritisasi."):
@@ -546,12 +589,12 @@ def empty_output(message="Masukkan teks Arab, kemudian pilih Proses Diakritisasi
             f'<p>{escape(message)}</p></div>')
 
 
-def copy_button(text, key, disabled=False):
+def copy_button(text, key, disabled=False, label='Salin'):
     """Only JSON-encoded text enters the script; user content cannot become HTML/JS."""
     element_id = f"copy_{key}"
     payload = dumps(str(text), ensure_ascii=True).replace("<", "\\u003c")
     html = (f'<div class="copy-control"><button type="button" class="copy-button" id="{element_id}" '
-            f'{"disabled" if disabled else ""}>{ui_icon("copy")}<span>Salin</span></button>'
+            f'{"disabled" if disabled else ""}>{ui_icon("copy")}<span>{escape(label)}</span></button>'
             f'<span class="copy-status" id="{element_id}_status" role="status" aria-live="polite"></span></div>')
     if not disabled:
         html += """<script>(() => {
@@ -588,27 +631,92 @@ def result_actions(text, key, filename="hasil_diakritisasi.txt", data=None, disa
                            file_name=filename, mime="text/plain; charset=utf-8",
                            key=f"download_{key}", icon=":material/download:", disabled=disabled,
                            on_click="ignore")
+        if key == 'manual' and not disabled:
+            st.button('Koreksi Manual', key='open_manual_correction', icon=':material/edit:',
+                      on_click=request_correction_editor)
+
+
+@st.fragment
+def render_translation_exports(result, identity, *, dataframe=None, column=None, text=None,
+                               filename='input_manual.txt', active_text=None):
+    with st.expander('Ekspor dengan Terjemahan', key=f'v3_exports_{identity}', on_change='rerun') as section:
+        if not section.open:
+            return
+        try:
+            corrected = active_text is not None and active_text != result.get('prediction')
+            report = None if corrected else v3_exports.cached_report(
+                st.session_state, result, dataframe=dataframe, column=column, text=text)
+            bundle = v3_exports.build_exports(result, dataframe=dataframe, column=column, text=text,
+                                              active_text=active_text, report=report)
+            retained = queue.retained_bytes(st.session_state.upload_files) + queue.retained_bytes(bundle)
+            retained += len(st.session_state.queue_zip or b'') + len((st.session_state.get('v3_export_zip') or {}).get('data', b''))
+            if retained > queue.MAX_RETAINED_BYTES:
+                raise ValueError('Batas memori sesi tercapai; hapus hasil lain sebelum menyiapkan ekspor tambahan.')
+            st.caption(v3_exports.NOTICE)
+            st.caption(f'{bundle["matched"]} paragraf dengan terjemahan · '
+                       + '; '.join(f'{n} {status}' for status, n in bundle['counts'].items()))
+            st.caption(v3_exports.CSV_RULE)
+            copy_button(bundle['txt'].decode('utf-8'), f'v3_{identity}', label='Salin Arab + Terjemahan')
+            st.download_button('Unduh Arab + Terjemahan (TXT)', bundle['txt'],
+                file_name=queue.safe_output_name(filename, 'txt', 'v3'), mime='text/plain; charset=utf-8',
+                key=f'v3_txt_{identity}', on_click='ignore')
+            st.download_button('Unduh CSV + Terjemahan', bundle['csv'],
+                file_name=queue.safe_output_name(filename, 'csv', 'v3'), mime='text/csv; charset=utf-8',
+                key=f'v3_csv_{identity}', on_click='ignore')
+            if identity == 'manual':
+                # A virtual file packages the active manual export; the model
+                # result itself and the ordinary TXT download remain untouched.
+                manual = dict(result, input_type='txt', prediction=active_text,
+                              download_bytes=active_text.encode('utf-8'))
+                entries = {'manual': {'upload_snapshot': {'name': filename, 'size': len(text.encode('utf-8'))},
+                    'file_result': manual, 'export_bytes': manual['download_bytes'],
+                    'upload_validation_cache': {'validation': {'success': True, 'text': text}},
+                    'csv_column': None}}
+            else:
+                queue.persist_active(st.session_state)
+                entries = st.session_state.upload_files
+            st.caption('ZIP mencakup masukan manual aktif.' if identity == 'manual' else
+                       'ZIP mencakup berkas unggahan sesi, termasuk hasil asli setiap berkas.')
+            # The token changes on upload, reprocessing, column, correction or
+            # reference changes. Stale V3 ZIPs are never offered for download.
+            tokens = []
+            for fid, entry in entries.items():
+                saved = entry.get('file_result') or {}
+                val = (entry.get('upload_validation_cache') or {}).get('validation', {})
+                tokens.append((fid, entry['upload_snapshot']['name'], val.get('success'), val.get('message'),
+                    v3_exports.match_key(saved, val.get('dataframe'), entry.get('csv_column'), val.get('text'))))
+            token = reference.fingerprint(tokens)
+            saved_zip = st.session_state.get('v3_export_zip')
+            if saved_zip and saved_zip['token'] != token:
+                st.session_state.pop('v3_export_zip', None); saved_zip = None
+            if st.button('Siapkan ZIP + Terjemahan', key=f'v3_prepare_zip_{identity}'):
+                data = v3_exports.build_zip(entries)
+                retained = queue.retained_bytes(st.session_state.upload_files) + queue.retained_bytes(bundle)
+                retained += len(st.session_state.queue_zip or b'') + len(data)
+                if retained > queue.MAX_RETAINED_BYTES:
+                    raise ValueError('Batas memori sesi tercapai; unduh hasil per berkas.')
+                saved_zip = {'token': token, 'data': data}; st.session_state.v3_export_zip = saved_zip
+            if saved_zip:
+                st.download_button('Unduh ZIP + Terjemahan', saved_zip['data'],
+                    file_name='hasil_dengan_terjemahan_v3.zip', mime='application/zip',
+                    key=f'v3_zip_{identity}', on_click='ignore')
+        except (ValueError, TypeError, KeyError, OSError) as error:
+            st.warning('Ekspor dengan terjemahan belum tersedia: ' + str(error))
 
 
 def input_notes(text):
-    st.html('<div class="input-notes"><span>Teks dibaca dari kanan ke kiri. Harakat masukan '
-            'akan dihapus sebelum prediksi ulang.</span>'
-            f'<span class="manual-char-count"><span id="manual_char_count">{len(text):,}</span> karakter</span></div>'
+    st.html('<div class="input-notes"><span>Teks panjang dibagi otomatis, maksimal 300 karakter per segmen. '
+            'Harakat masukan dihapus sebelum prediksi ulang.</span></div>'
             """<script>(() => {
-              function bindCounter() {
-                const area = document.querySelector('.st-key-arabic_input textarea');
+              // Resolve the current header node on each event: Streamlit replaces
+              // HTML nodes during reruns, while the textarea widget can persist.
+              if (window._unimalLiveCounter) document.removeEventListener('input', window._unimalLiveCounter, true);
+              window._unimalLiveCounter = event => {
+                if (!event.target.matches?.('.st-key-arabic_input textarea')) return;
                 const counter = document.getElementById('manual_char_count');
-                if (!area || !counter) return false;
-                if (area._unimalCounter) area.removeEventListener('input', area._unimalCounter);
-                area._unimalCounter = () => { counter.textContent = Array.from(area.value).length.toLocaleString('id-ID'); };
-                area.addEventListener('input', area._unimalCounter); area._unimalCounter();
-                return true;
-              }
-              if (!bindCounter()) {
-                const observer = new MutationObserver(() => { if (bindCounter()) observer.disconnect(); });
-                observer.observe(document.body, {childList:true, subtree:true});
-                window.setTimeout(() => observer.disconnect(), 10000);
-              }
+                if (counter) counter.textContent = Array.from(event.target.value).length.toLocaleString('id-ID');
+              };
+              document.addEventListener('input', window._unimalLiveCounter, true);
               // Close the native mobile drawer after choosing a destination.
               if (window._unimalMobileNav) {
                 document.removeEventListener('change', window._unimalMobileNav, true);
@@ -785,7 +893,7 @@ def compare_prediction(original_text, prediction):
         )
 
 
-def processing_summary(items, note, *, file=False):
+def processing_summary(items, note, *, file=False, title='Ringkasan Hasil Pemrosesan'):
     """Build a compact, escaped UI summary without modifying backend results."""
     class_name = "processing-summary processing-summary-file" if file else "processing-summary"
     cards = ''.join(
@@ -793,7 +901,7 @@ def processing_summary(items, note, *, file=False):
         for label, value in items
     )
     return (f'<section class="{class_name}" aria-label="Ringkasan Hasil Pemrosesan">'
-            f'<h3>{ui_icon("info")}Ringkasan Hasil Pemrosesan</h3>'
+            f'<h3>{ui_icon("info")}{escape(title)}</h3>'
             f'<dl>{cards}</dl><p>{escape(note)}</p></section>')
 
 
@@ -807,30 +915,35 @@ def manual_processing_summary(original_text):
     if metadata is None:
         return ""
     source = "Koreksi Pengguna" if st.session_state.manual_correction is not None else "Prediksi Model"
-    return processing_summary([
+    return success_summary_markup([
         ("Karakter input", f"{len(original_text):,}".replace(",", ".")),
         ("Waktu pemrosesan", processing_duration(metadata)),
         ("Status", "Selesai"), ("Sumber teks aktif", source),
-    ], "Durasi panggilan prediksi, termasuk praproses dan penggabungan hasil; tanpa waktu interaksi pengguna.")
+    ], "Durasi prediksi termasuk praproses dan penggabungan hasil; tanpa waktu interaksi pengguna.")
 
 
 def file_processing_summary(result, filename):
     metadata = st.session_state.file_processing
     if metadata is None:
+        st.info(result.get('message', 'Hasil pemrosesan tersimpan.'))
         return
     statuses = result.get("status_summary")
     counts = statuses if statuses is not None else {}
     available = statuses is not None
     count = lambda value: f"{value:,}".replace(",", ".") if available else "Tidak tersedia"
+    title = ('Selesai dengan kegagalan sebagian' if counts.get('gagal') else
+             'Berhasil diproses' if counts.get('berhasil') else
+             'Selesai tanpa prediksi' if available else 'Pemrosesan selesai')
     st.html(processing_summary([
-        (f'Berkas {result["input_type"].upper()}', filename),
+        ('Format berkas', result['input_type'].upper()),
         ("Baris diperiksa", count(sum(counts.values()))),
         ("Berhasil diprediksi", count(counts.get("berhasil", 0))),
         ("Tidak diprediksi", count(sum(counts.get(name, 0) for name in ("kosong", "non_arab", "campuran")))),
         ("Baris gagal", count(counts.get("gagal", 0))),
         ("Waktu pemrosesan", processing_duration(metadata)),
     ], "Baris kosong, non-Arab, dan campuran tidak diprediksi model; teks dapat dinormalisasi sesuai aturan sistem. "
-       "Durasi mencakup pembacaan berkas, pemrosesan, dan penyiapan unduhan; tanpa waktu interaksi pengguna.", file=True))
+       "Durasi mencakup pembacaan berkas, pemrosesan, dan penyiapan unduhan; tanpa waktu interaksi pengguna.",
+       file=True, title=title))
 
 
 def correction_editor(prediction):
@@ -840,7 +953,7 @@ def correction_editor(prediction):
     if widget_key not in st.session_state:
         correction = st.session_state.manual_correction
         st.session_state[widget_key] = prediction if correction is None else correction
-    with st.expander("Koreksi Hasil", key="manual_correction_editor"):
+    with st.expander("Koreksi Hasil", key="manual_correction_editor", on_change='rerun'):
         with st.container(key="arabic_correction"):
             with st.form(f"manual_correction_form_{generation}", enter_to_submit=False, border=False):
                 st.text_area("Koreksi Manual Harakat", key=widget_key, height=180)
@@ -863,11 +976,20 @@ def show_prediction(result, key, original_text=None):
     corrected = original_text is not None and st.session_state.manual_correction is not None
     export_text = st.session_state.manual_correction if corrected else result["prediction"]
     if original_text is not None:
-        st.html(manual_processing_summary(original_text))
+        if st.session_state.manual_processing is None:
+            st.success('Diakritisasi selesai. Hasil tersimpan dan siap dibaca.')
+    if original_text is not None:
+        render_reference_panel(None, None, None, 'manual', result,
+                               source_text=original_text, display_text=export_text,
+                               summary_html=manual_processing_summary(original_text))
         source = "Koreksi Pengguna" if corrected else "Prediksi Model"
-        st.caption(f"{source} · Salin dan Unduh TXT menggunakan teks yang ditampilkan di bawah.")
-    arabic(export_text, result=True)
+        st.caption(f"{source} · Salin dan Unduh TXT menggunakan "
+                   + ("teks koreksi yang diterapkan." if corrected else "hasil asli model yang tersimpan."))
+    else:
+        arabic(export_text, result=True)
     result_actions(export_text, key, filename="hasil_koreksi_manual.txt" if corrected else "hasil_diakritisasi.txt")
+    if original_text is not None:
+        render_translation_exports(result, 'manual', text=original_text, active_text=export_text)
     if original_text is not None:
         if export_text == "":
             st.warning("Koreksi manual kosong. Salin dan Unduh TXT akan menghasilkan teks kosong.")
@@ -938,13 +1060,18 @@ def render_manual():
         st.session_state["_manual_input"] = st.session_state.manual_input
     with st.container(key="workspace"):
         with st.container(key="manual_card", border=True):
-            card_heading("01", "MASUKKAN TEKS ARAB")
+            card_heading("01", "Masukan Teks Arab", "Ketik atau tempel teks Arab yang ingin diakritisasi.",
+                         count=len(st.session_state['_manual_input']))
             with st.container(key="arabic_input"):
-                text = st.text_area("Teks Arab", key="_manual_input", height=160,
-                                    placeholder=EXAMPLES[0], on_change=manual_changed)
+                text = st.text_area("Teks Arab", key="_manual_input", height=120,
+                                    label_visibility='collapsed',
+                                    placeholder='أدخل النص العربي هنا…', on_change=manual_changed)
+            st.html('<p class="input-example">Contoh: <span lang="ar" dir="rtl">'
+                    + escape(EXAMPLES[0]) + '</span></p>')
             input_notes(text)
             with st.container(horizontal=True, key="manual_actions"):
-                process = st.button("Proses Diakritisasi", key="process_manual", type="primary", disabled=not READY)
+                process = st.button("Proses Diakritisasi", key="process_manual", type="primary", disabled=not READY,
+                                    width="content")
                 st.button("Bersihkan", key="reset_manual", on_click=reset_manual, icon=":material/delete_sweep:")
             if process:
                 clear_manual_correction()
@@ -955,16 +1082,20 @@ def render_manual():
                         "message": "Masukkan teks Arab terlebih dahulu sebelum memproses."}
                     st.error(st.session_state.manual_result["message"])
                 else:
-                    st.session_state.manual_result = processing_call(
-                        engine.predict_long_text, text, summary_key="manual_processing")
+                    progress_slot = st.empty()
+                    with progress_slot:
+                        st.session_state.manual_result = processing_call(
+                            engine.predict_long_text, text, summary_key="manual_processing")
+                    progress_slot.empty()
                 st.session_state.manual_result_input = text
                 if st.session_state.manual_result.get("success"):
+                    reset_reference_pages('manual')
                     scroll_request = uuid4().hex
             with st.expander("Panduan masukan"):
                 st.write("Gunakan teks Arab tanpa campuran huruf Latin. Teks panjang dibagi otomatis "
                          "menjadi segmen maksimal 300 karakter, lalu digabungkan sesuai urutan.")
         with st.container(key="manual_result_card", border=True):
-            card_heading("02", "HASIL PREDIKSI")
+            card_heading("02", "Hasil Diakritisasi", "Hasil pemberian harakat menggunakan model BiLSTM–CRF.")
             with st.container(key="manual_stale_notice"):
                 st.html('<div class="manual-stale-notice" role="status" aria-live="polite">'
                         '<strong>Input berubah, jalankan prediksi kembali.</strong><br>'
@@ -974,9 +1105,6 @@ def render_manual():
             with st.container(key="manual_result_payload"):
                 if current:
                     show_prediction(result, "manual", original_text=st.session_state.manual_result_input)
-                    if result.get("success"):
-                        render_reference_panel(None, None, None, "manual", result,
-                                               source_text=st.session_state.manual_result_input)
                 else:
                     empty_output()
                     result_actions("", "manual", disabled=True)
@@ -1102,6 +1230,8 @@ def process_active_file(validation):
     queue.persist_active(st.session_state)
     if entry:
         entry["export_bytes"] = export
+    if result.get("success"):
+        reset_reference_pages(st.session_state.active_upload_id or snapshot['digest'])
 
 
 def process_all_files():
@@ -1128,24 +1258,32 @@ def process_all_files():
 def render_queue_controls():
     entries = st.session_state.upload_files
     if not entries:
+        with st.container(horizontal=True, vertical_alignment='center', key='file_list_heading'):
+            card_heading('02', 'Daftar File')
+            st.button("Hapus Semua", key="reset_all_files", on_click=reset_all_files,
+                      icon=":material/delete_sweep:", type='tertiary', disabled=True)
+        if st.session_state.upload_snapshot is None:
+            with st.container(key='file_list_empty'):
+                st.html(upload_design.empty_file_list())
         return
     inspect_queue()
-    with st.container(horizontal=True):
-        process_all = st.button("Proses Semua", key="process_all_files", type="primary", disabled=not READY)
-        st.button("Hapus Semua", key="reset_all_files", on_click=reset_all_files, icon=":material/delete_sweep:")
-    if process_all and READY:
-        process_all_files()
-    rows = []
-    for entry in entries.values():
-        snapshot = entry["upload_snapshot"]
-        status, message = queue.entry_status(entry)
-        cache = (entry.get("upload_validation_cache") or {}).get("validation", {})
-        rows.append({"Nama": snapshot["name"], "Format": Path(snapshot["name"]).suffix.lstrip(".").upper(),
-                     "Ukuran (byte)": snapshot["size"], "Validitas": "Valid" if cache.get("success") else "Tidak valid",
-                     "Status": status, "Ringkasan": str((entry.get("file_result") or {}).get("status_summary") or message)})
-    # A native table cannot expose raw CSV downloads (export policy above).
-    with st.expander("Daftar berkas sesi", expanded=True):
-        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    with st.container(key='file_list_section'):
+        with st.container(horizontal=True, vertical_alignment='center', key='file_list_heading'):
+            card_heading('02', 'Daftar File')
+            st.button("Hapus Semua", key="reset_all_files", on_click=reset_all_files,
+                      icon=":material/delete_sweep:", type='tertiary')
+        with st.container(key='file_list', height=360 if len(entries) > 5 else 'content', border=False):
+            for file_id, entry in entries.items():
+                active = file_id == st.session_state.active_upload_id
+                with st.container(horizontal=True, vertical_alignment='center', key=f'file_row_{file_id}'):
+                    st.html(upload_design.file_row(entry, active=active))
+                    if active:
+                        st.button('Hapus Berkas', key='reset_file', on_click=reset_file,
+                                  icon=':material/delete:', type='tertiary')
+                    else:
+                        st.button('Hapus', key=f'remove_upload_{file_id}', on_click=remove_queued_file,
+                                  args=(file_id,), help='Hapus ' + entry['upload_snapshot']['name'],
+                                  icon=':material/delete:', type='tertiary')
     st.session_state["_active_file"] = st.session_state.active_upload_id
     ids = list(entries)
     st.selectbox("Berkas untuk pratinjau, proses ulang, atau unduh", ids, key="_active_file",
@@ -1153,11 +1291,18 @@ def render_queue_controls():
                  on_change=active_file_changed)
 
 
-def render_queue_zip():
+def remove_queued_file(file_id):
+    """Use the existing session collection API; never delete a filesystem file."""
+    if file_id in st.session_state.upload_files:
+        queue.remove_upload(st.session_state, file_id)
+        st.session_state.queue_zip = None
+
+
+def render_queue_zip(*, compact=False):
     entries = st.session_state.upload_files
     if not entries:
         return
-    if st.button("Siapkan ZIP", key="prepare_queue_zip"):
+    if st.button("Siapkan ZIP", key="prepare_queue_zip", icon=":material/folder_zip:"):
         queue.persist_active(st.session_state)
         try:
             st.session_state.queue_zip = queue.build_zip(entries)
@@ -1166,20 +1311,14 @@ def render_queue_zip():
             st.error(f"ZIP belum dapat disiapkan: {error}")
     if st.session_state.queue_zip is not None:
         st.download_button("Unduh Semua (ZIP)", st.session_state.queue_zip, file_name="hasil_diakritisasi_semua.zip",
-                           mime="application/zip", key="download_all_files", on_click="ignore")
-    else:
+                           mime="application/zip", key="download_all_files", on_click="ignore",
+                           icon=":material/download:")
+    elif not compact:
         st.caption("Siapkan ZIP untuk mengunduh semua hasil tersimpan beserta ringkasan setiap berkas, termasuk berkas gagal atau belum diproses.")
 
 
 def file_information(snapshot, validation):
     kind = Path(snapshot["name"]).suffix.lstrip(".").upper() or "Tanpa ekstensi"
-    size = len(snapshot["data"]) if snapshot["data"] is not None else snapshot["size"]
-    facts = (("Jenis", kind),
-             ("Ukuran", f"{size:,} byte ({size / 1024:.1f} KB)"),
-             ("Pemeriksaan", "Valid" if validation.get("success") else "Belum valid"))
-    st.html('<div class="file-facts">' + ''.join(
-        f'<div class="file-fact"><span>{escape(label)}</span><strong>{escape(value)}</strong></div>'
-        for label, value in facts) + '</div>')
     details = []
     if validation.get("encoding"):
         details.append("Encoding terbaca: " + str(validation["encoding"]))
@@ -1189,32 +1328,44 @@ def file_information(snapshot, validation):
         st.html('<p class="file-meta">' + escape(" | ".join(details)) + '</p>')
 
 
-def render_file_result(result, filename):
+def render_file_result(result, filename, *, upload_data=None, dataframe=None, column=None,
+                       file_key=None, source_text=None, selected_view=None):
     if not result.get("success"):
         st.error(result.get("message", "Berkas belum berhasil diproses."))
         empty_output("Periksa berkas dan coba proses kembali.")
         return
     file_processing_summary(result, filename)
-    st.success(result["message"])
     output_filename = (queue.safe_output_name(filename, result["input_type"], st.session_state.active_upload_id)
                        if st.session_state.active_upload_id else result["output_filename"])
-    if result["input_type"] == "txt":
-        arabic(result["prediction"], result=True)
-        result_actions(result["prediction"], "file", filename=output_filename, data=result["download_bytes"])
-    else:
-        # Fit short results without growing beyond the existing scrollable area.
-        table_height = min(320, 35 * (len(result["dataframe"]) + 1) + 3)
-        st.dataframe(result["dataframe"], hide_index=True, width="stretch", height=table_height, row_height=35)
-        with st.container(horizontal=True, key="file_result_actions"):
-            st.download_button("Unduh CSV", spreadsheet_safe_csv(result["dataframe"]), file_name=output_filename,
-                               mime="text/csv; charset=utf-8", key="download_file", icon=":material/download:",
-                               on_click="ignore")
+    render_reference_panel(upload_data, dataframe, column, file_key, result, source_text=source_text,
+                           selected_view=selected_view)
+    with st.container(horizontal=True, key='file_export_toolbar'):
+        with st.container(horizontal=True, key="file_result_actions", width='content'):
+            if result["input_type"] == "txt":
+                copy_button(result['prediction'], 'file')
+                st.download_button('Unduh TXT', result['download_bytes'], file_name=output_filename,
+                                   mime='text/plain; charset=utf-8', key='download_file',
+                                   icon=':material/download:', on_click='ignore')
+            else:
+                safe_csv = spreadsheet_safe_csv(result['dataframe'])
+                copy_button(safe_csv.decode('utf-8-sig'), 'file_csv', label='Salin CSV')
+                st.download_button("Unduh CSV", safe_csv, file_name=output_filename,
+                                   mime="text/csv; charset=utf-8", key="download_file", icon=":material/download:",
+                                   on_click="ignore")
+        render_queue_zip(compact=True)
+    render_translation_exports(result, file_key, dataframe=dataframe, column=column,
+                               text=source_text, filename=filename)
     if result["input_type"] == "csv":
-        st.caption("CSV unduhan diamankan untuk spreadsheet: nilai berisiko formula diberi awalan tab, termasuk header. "
-                   "Angka negatif ASCII murni (-12, -3.5, -1e3) tetap; bentuk ambigu diekspor sebagai teks. "
-                   "Pratinjau dan hasil model tidak diubah; periksa kembali harakat.")
-    else:
-        st.caption("Unduhan mengikuti keluaran backend, termasuk normalisasi sistem. Periksa kembali ketepatan harakat.")
+        with st.expander('Tabel hasil CSV dan metadata'):
+            table_height = min(320, 35 * (len(result["dataframe"]) + 1) + 3)
+            st.dataframe(result["dataframe"], hide_index=True, width="stretch", height=table_height, row_height=35)
+    with st.expander('Detail ekspor'):
+        if result["input_type"] == "csv":
+            st.caption("CSV unduhan diamankan untuk spreadsheet: nilai berisiko formula diberi awalan tab, termasuk header. "
+                       "Angka negatif ASCII murni (-12, -3.5, -1e3) tetap; bentuk ambigu diekspor sebagai teks. "
+                       "Pratinjau dan hasil model tidak diubah; periksa kembali harakat.")
+        else:
+            st.caption("Unduhan mengikuti keluaran backend, termasuk normalisasi sistem. Periksa kembali ketepatan harakat.")
     unknown_warning(result)
     for warning in result.get("warnings") or []:
         st.warning(f"Baris {warning['line']}: {warning['note']}")
@@ -1232,66 +1383,109 @@ def render_file_result(result, filename):
 
 def render_file():
     sync_reference_file(st.session_state.active_upload_id)
+    # Processing can rerun before the result-card widget is reached. Detach its
+    # saved value from widget cleanup so the user's view survives that rerun.
+    view_key = f'translation_reference_view_{st.session_state.active_upload_id or "upload_empty"}'
+    if view_key in st.session_state:
+        st.session_state[view_key] = st.session_state[view_key]
     scroll_request = st.session_state.pop("queue_scroll_request", None)
     with st.container(key="file_workspace"):
-        with st.container(key="file_upload_card", border=True):
-            card_heading("01", "UNGGAH TEKS ARAB")
-            st.html('<p class="upload-help">Pilih berkas, periksa pratinjau, lalu proses diakritisasi. '
-                    'Format TXT atau CSV, maksimal 5 MiB per berkas, 20 berkas dan total masukan 20 MiB per sesi. '
-                    'Tambahkan berkas tanpa menghapus hasil sebelumnya. Baris kosong, non-Arab, dan campuran tidak diprediksi; '
-                    'teks dapat dinormalisasi sesuai aturan sistem.</p>')
-            widget_key = f"_upload_{st.session_state.uploader_generation}"
-            st.file_uploader("Pilih berkas TXT atau CSV", type=["txt", "csv"], key=widget_key,
-                             accept_multiple_files=True,
-                             max_upload_size=5, on_change=upload_changed, args=(widget_key,),
-                             help="Batch unggahan dipindahkan ke daftar sesi dan pemilih unggahan dikosongkan kembali. "
-                                  "Berkas dan hasil tetap tersimpan saat menambah unggahan atau berpindah halaman.")
-            st.caption("Batas pemrosesan per berkas: TXT 250.000 karakter/10.000 baris; CSV 1.000.000 karakter, "
-                       "10.000 baris, 100 kolom, 100.000 sel. Anggaran data sesi 128 MiB dan ekspor 32 MiB. "
-                       "Berkas yang melampaui batas ditolak tanpa pemotongan teks.")
-            for message in st.session_state.upload_messages:
-                st.warning(message)
-            render_queue_controls()
-            snapshot = st.session_state.upload_snapshot
-            validation = inspect_upload(snapshot)
-            selected_column = None
-            if snapshot is not None:
-                st.caption(f"Berkas aktif: {snapshot['name']} — tersimpan dalam sesi ini. "
-                           "Tambahkan unggahan untuk menyimpan berkas lain, atau pilih Hapus Berkas untuk menghapus yang aktif.")
-                file_information(snapshot, validation)
-                if not validation.get("success"):
-                    st.error(validation["message"])
-                elif Path(snapshot["name"]).suffix.lower() == ".csv":
-                    dataframe = validation["dataframe"]
-                    candidates = validation["arabic_columns"]
-                    names = [item["column"] for item in candidates]
-                    options = names + [col for col in dataframe.columns if col not in names]
-                    if st.session_state.csv_column not in options:
-                        st.session_state.csv_column = "teks_gundul" if "teks_gundul" in options else options[0]
-                    st.session_state["_csv_column"] = st.session_state.csv_column
-                    selected_column = st.selectbox("Pilih Kolom Teks Arab", options, key="_csv_column", on_change=column_changed,
-                                                   args=((snapshot["name"], snapshot["digest"]), st.session_state.active_upload_id))
-                    if names:
-                        st.caption("Kandidat kolom teks Arab: " + ", ".join(map(str, names)))
-                    with st.expander("Pratinjau CSV", expanded=True):
-                        st.dataframe(dataframe.head(5), hide_index=True, width="stretch")
-                        st.caption("Pratinjau maksimal 5 baris. Pemrosesan menggunakan seluruh berkas.")
-                    with st.expander("Pratinjau teks kolom terpilih (RTL)"):
-                        arabic("\n".join(dataframe[selected_column].head(5).astype(str)))
-                else:
-                    with st.expander("Pratinjau TXT", expanded=True):
-                        excerpt = "".join(validation["text"].splitlines(keepends=True)[:8])[:4000]
-                        st.html('<div class="txt-preview"><div class="arabic-text" lang="ar" dir="rtl">'
-                                + escape(excerpt) + '</div></div>')
-                        st.caption("Pratinjau maksimal 8 baris atau 4.000 karakter. Seluruh berkas tetap diproses.")
-            else:
-                st.caption(validation["message"])
+        with st.container(key="file_main_columns"):
+            upload_column, management_column = st.columns([1, 1], gap="medium")
+        with upload_column:
+            with st.container(key="file_upload_card", border=True, height='stretch'):
+                card_heading("01", "Unggah File",
+                             "Seret berkas teks Arab untuk diproses menggunakan model BiLSTM–CRF.")
+                with st.container(key='file_upload_columns'):
+                    uploader = st.container(key='file_upload_input')
+                    output_settings = st.container()
+                with uploader:
+                    widget_key = f"_upload_{st.session_state.uploader_generation}"
+                    with st.container(key='upload_drop_area'):
+                        st.html(upload_design.dropzone_copy())
+                        st.file_uploader("Pilih berkas TXT atau CSV", type=["txt", "csv"], key=widget_key,
+                                         accept_multiple_files=True,
+                                         max_upload_size=5, on_change=upload_changed, args=(widget_key,),
+                                         help="Batch unggahan dipindahkan ke daftar sesi dan pemilih unggahan dikosongkan kembali. "
+                                              "Berkas dan hasil tetap tersimpan saat menambah unggahan atau berpindah halaman.")
+                    st.html(upload_design.uploader_copy_script(), unsafe_allow_javascript=True)
+                    st.caption(f'TXT / CSV: Maksimal {queue.MAX_FILE_BYTES // (1024 * 1024)} MiB per berkas • '
+                               f'{queue.MAX_FILES} berkas per sesi • Total {queue.MAX_INPUT_BYTES // (1024 * 1024)} MiB per sesi.')
+                    for message in st.session_state.upload_messages:
+                        st.warning(message)
+                with output_settings:
+                    with st.container(key='file_output_settings'):
+                        # Insert controls here after the active CSV column is known.
+                        # This changes visual order, never the processing dependency.
+                        actions_slot = st.container()
+                        with st.expander('Batas dan ketentuan berkas'):
+                            st.caption("Batas pemrosesan per berkas: TXT 250.000 karakter/10.000 baris; CSV 1.000.000 karakter, "
+                                       "10.000 baris, 100 kolom, 100.000 sel. Anggaran data sesi 128 MiB dan ekspor 32 MiB. "
+                                       "Berkas yang melampaui batas ditolak tanpa pemotongan teks. "
+                                       "Baris kosong, non-Arab, dan campuran tidak diprediksi; teks dapat dinormalisasi sesuai aturan sistem.")
+        with management_column:
+            with st.container(key='file_management_card', border=True, height='stretch'):
+                with st.container(key='file_management_columns'):
+                    file_list = st.container(key='file_list_panel')
+                    active_settings = st.container()
+                with file_list:
+                    render_queue_controls()
+                snapshot = st.session_state.upload_snapshot
+                validation = inspect_upload(snapshot)
+                selected_column = None
+                with active_settings:
+                    with st.container(key='file_settings_card'):
+                        st.markdown('### Pengaturan File Aktif')
+                        if snapshot is not None:
+                            st.caption(f"Berkas aktif: {snapshot['name']} — tersimpan dalam sesi ini.")
+                            file_information(snapshot, validation)
+                            if not validation.get("success"):
+                                st.error(validation["message"])
+                            elif Path(snapshot["name"]).suffix.lower() == ".csv":
+                                dataframe = validation["dataframe"]
+                                candidates = validation["arabic_columns"]
+                                names = [item["column"] for item in candidates]
+                                options = names + [col for col in dataframe.columns if col not in names]
+                                if st.session_state.csv_column not in options:
+                                    st.session_state.csv_column = "teks_gundul" if "teks_gundul" in options else options[0]
+                                st.session_state["_csv_column"] = st.session_state.csv_column
+                                selected_column = st.selectbox("Pilih Kolom Teks Arab", options, key="_csv_column", on_change=column_changed,
+                                                               args=((snapshot["name"], snapshot["digest"]), st.session_state.active_upload_id))
+                                if selected_column not in names:
+                                    st.info('Kolom terpilih tidak terdeteksi berisi teks Arab. '
+                                            'Baris non-Arab tidak diprediksi model.')
+                                with st.expander("Pratinjau CSV"):
+                                    st.dataframe(dataframe.head(5), hide_index=True, width="stretch")
+                                    st.caption("Pratinjau maksimal 5 baris. Pemrosesan menggunakan seluruh berkas.")
+                                with st.expander("Pratinjau teks kolom terpilih (RTL)"):
+                                    arabic("\n".join(dataframe[selected_column].head(5).astype(str)))
+                            else:
+                                with st.expander("Pratinjau TXT"):
+                                    excerpt = "".join(validation["text"].splitlines(keepends=True)[:8])[:4000]
+                                    st.html('<div class="txt-preview"><div class="arabic-text" lang="ar" dir="rtl">'
+                                            + escape(excerpt) + '</div></div>')
+                                    st.caption("Pratinjau maksimal 8 baris atau 4.000 karakter. Seluruh berkas tetap diproses.")
+                            if st.session_state.active_upload_id not in st.session_state.upload_files:
+                                # Preserve the existing single-file state interface as well as
+                                # the session collection used by the native uploader.
+                                st.button('Hapus Berkas', key='reset_file', on_click=reset_file, icon=':material/delete:')
+                        else:
+                            with st.container(key='file_settings_empty'):
+                                st.html('<p><strong>Belum ada berkas yang dipilih.</strong><br>'
+                                        'Pilih berkas dari daftar di atas untuk melihat pengaturan dan pratinjau.</p>')
+        with actions_slot:
             signature = ((snapshot["name"], snapshot["digest"], selected_column) if snapshot else None)
             with st.container(horizontal=True, key="file_actions"):
-                process = st.button("Proses Ulang Berkas" if st.session_state.file_result else "Proses Diakritisasi", type="primary", key="process_file",
+                process = st.button("Proses Diakritisasi", type="primary", key="process_file", width='stretch',
                                     disabled=not (READY and validation.get("success")))
-                st.button("Hapus Berkas", key="reset_file", on_click=reset_file,
-                          disabled=snapshot is None, icon=":material/delete_sweep:")
+                process_all = st.button('Proses Semua', key='process_all_files',
+                                        disabled=not READY or not any(
+                                            (e.get('upload_validation_cache') or {}).get('validation', {}).get('success')
+                                            for e in st.session_state.upload_files.values()))
+            if process_all:
+                process_all_files()
+                st.session_state.queue_scroll_request = uuid4().hex
+                st.rerun()
             if process and READY and validation.get("success"):
                 process_active_file(validation)
                 if st.session_state.file_result.get("success"):
@@ -1302,26 +1496,34 @@ def render_file():
             if not READY:
                 st.info("Model belum siap; pemrosesan berkas dinonaktifkan.")
         with st.container(key="file_result_card", border=True):
-            card_heading("02", "HASIL DIAKRITISASI")
+            card_heading("03", "Hasil Diakritisasi", 'Hasil pemrosesan berkas aktif menggunakan model BiLSTM–CRF.')
+            with st.container(key="file_result_view", width=480):
+                selected_view = st.segmented_control('Tampilan hasil', [ARABIC_VIEW, TRANSLATION_VIEW],
+                                                     default=ARABIC_VIEW, required=True,
+                                                     key=view_key,
+                                                     width='stretch') or ARABIC_VIEW
             result = st.session_state.file_result
             if result and validation.get("success") and st.session_state.file_result_signature == signature:
-                render_file_result(result, snapshot["name"])
-                if result.get("success"):
-                    render_reference_panel(snapshot["data"], validation.get("dataframe"), selected_column,
-                                           st.session_state.active_upload_id or snapshot["digest"], result,
-                                           source_text=validation.get("text"))
+                render_file_result(result, snapshot["name"], upload_data=snapshot['data'],
+                                   dataframe=validation.get('dataframe'), column=selected_column,
+                                   file_key=st.session_state.active_upload_id or snapshot['digest'],
+                                   source_text=validation.get('text'), selected_view=selected_view)
             else:
                 empty_output("Pilih berkas TXT atau CSV yang valid, lalu jalankan Proses Diakritisasi.")
         if scroll_request:
             scroll_to_result("file", scroll_request)
         queue.persist_active(st.session_state)
-        render_queue_zip()
+        if not (result and result.get('success') and validation.get('success')
+                and st.session_state.file_result_signature == signature):
+            with st.container(key='file_batch_exports'):
+                render_queue_zip()
 
 
 def render_diakritisasi():
+    st.html(input_design.CSS)
+    st.html(upload_design.CSS)
     with st.container(key="diak_page"):
-        heading("Area kerja", "Diakritisasi Teks Arab",
-                "Tambahkan harakat pada teks Arab secara otomatis menggunakan model BiLSTM-CRF.")
+        st.html(input_design.page_header())
         manual_tab, file_tab = st.tabs(["Input Teks", ":material/upload_file: Unggah TXT / CSV"])
         with manual_tab:
             render_manual()
@@ -1366,62 +1568,72 @@ def format_percent(value):
 def render_about():
     heading("Informasi penelitian", "Tentang Model",
             "Ruang lingkup, konfigurasi, dan hasil evaluasi model yang digunakan dalam aplikasi.")
-    st.subheader("Ruang lingkup", anchor=False)
-    st.write("Aplikasi ini merupakan implementasi penelitian diakritisasi otomatis teks Arab gundul "
-             "pada Kitab Fathul Qorib menggunakan BiLSTM-CRF. Korpus Tashkeela digunakan untuk "
-             "pretraining, kemudian model disesuaikan dengan data Kitab Fathul Qorib melalui fine-tuning. "
-             "Inferensi aplikasi menggunakan model fine-tuned.")
-    st.write("Embedding membentuk representasi karakter, BiLSTM mempelajari konteks dari dua arah, "
-             "lapisan linear menghasilkan skor label, dan CRF menentukan urutan label harakat. "
-             "Sistem kemudian merekonstruksi teks berharakat dari label hasil prediksi.")
-    with st.expander("Konfigurasi model aktif", expanded=False):
-        if not model_info:
-            st.info("Konfigurasi belum tersedia karena model belum berhasil dimuat.")
-        else:
-            fields = {
-                "Kosakata karakter": "vocab_size", "Kelas label": "num_labels",
-                "Dimensi embedding": "embedding_dim", "Unit tersembunyi per arah": "hidden_per_direction",
-                "Dimensi keluaran BiLSTM": "hidden_dim", "Lapisan BiLSTM": "num_layers",
-                "Dropout": "dropout", "Maksimal karakter per segmen": "max_len",
-                "Jumlah parameter": "total_parameters", "Epoch checkpoint": "checkpoint_epoch",
-                "Perangkat inferensi": "device",
-            }
-            st.dataframe(pd.DataFrame([
-                {"Komponen": label, "Konfigurasi": str(model_info.get(key, "Tidak tersedia"))}
-                for label, key in fields.items()
-            ]), hide_index=True, width="stretch")
-    st.divider()
-    st.subheader("Hasil evaluasi pada data uji", anchor=False)
-    st.caption("Kitab Fathul Qorib · Metrik evaluasi tersimpan, bukan tingkat keyakinan untuk setiap prediksi.")
-    fine = metrics_data.get("fine_tuned") if isinstance(metrics_data, dict) else None
-    if not isinstance(fine, dict):
-        st.info("Metrik evaluasi belum tersedia.")
-    else:
-        columns = st.columns(3)
-        for col, label, key in zip(columns, ["Accuracy", "DER", "WER"],
-                                   ["accuracy_percent", "der_percent", "wer_percent"]):
-            col.metric(label, format_percent(fine.get(key)))
-        st.caption("Accuracy: persentase karakter yang benar, termasuk spasi dan tanda baca. "
-                   "DER: kesalahan diakritik pada huruf Arab. "
-                   "WER: kata Arab dengan sedikitnya satu kesalahan.")
-        baseline = metrics_data.get("baseline")
-        if isinstance(baseline, dict):
-            with st.expander("Perbandingan baseline dan fine-tuned"):
+    with st.container(key="about_translation_card", border=True):
+        st.subheader("Terjemahan Mandiri V3", anchor=False)
+        st.write("Terjemahan Indonesia merupakan referensi statis berbantuan AI, bukan keluaran model BiLSTM–CRF. "
+                 "Database terjemahan masih berupa draf yang belum diverifikasi ahli bahasa Arab/fikih. "
+                 "Memilih Arab + Terjemahan hanya menampilkan pasangan tersimpan yang cocok; "
+                 "tidak membuat terjemahan baru atau mengubah status verifikasi. "
+                 "Terjemahan tidak disertakan dalam ekspor TXT, CSV, atau ZIP hasil diakritisasi.")
+    with st.container(key="about_scope_card", border=True):
+        st.subheader("Ruang lingkup", anchor=False)
+        st.write("Aplikasi ini merupakan implementasi penelitian diakritisasi otomatis teks Arab gundul "
+                 "pada Kitab Fathul Qorib menggunakan BiLSTM-CRF. Korpus Tashkeela digunakan untuk "
+                 "pretraining, kemudian model disesuaikan dengan data Kitab Fathul Qorib melalui fine-tuning. "
+                 "Inferensi aplikasi menggunakan model fine-tuned.")
+        st.write("Embedding membentuk representasi karakter, BiLSTM mempelajari konteks dari dua arah, "
+                 "lapisan linear menghasilkan skor label, dan CRF menentukan urutan label harakat. "
+                 "Sistem kemudian merekonstruksi teks berharakat dari label hasil prediksi.")
+        with st.expander("Konfigurasi model aktif", expanded=False):
+            if not model_info:
+                st.info("Konfigurasi belum tersedia karena model belum berhasil dimuat.")
+            else:
+                fields = {
+                    "Kosakata karakter": "vocab_size", "Kelas label": "num_labels",
+                    "Dimensi embedding": "embedding_dim", "Unit tersembunyi per arah": "hidden_per_direction",
+                    "Dimensi keluaran BiLSTM": "hidden_dim", "Lapisan BiLSTM": "num_layers",
+                    "Dropout": "dropout", "Maksimal karakter per segmen": "max_len",
+                    "Jumlah parameter": "total_parameters", "Epoch checkpoint": "checkpoint_epoch",
+                    "Perangkat inferensi": "device",
+                }
                 st.dataframe(pd.DataFrame([
-                    {"Model": name, "Accuracy": format_percent(data.get("accuracy_percent")),
-                     "DER": format_percent(data.get("der_percent")), "WER": format_percent(data.get("wer_percent"))}
-                    for name, data in [("Baseline", baseline), ("Fine-tuned", fine)]
+                    {"Komponen": label, "Konfigurasi": str(model_info.get(key, "Tidak tersedia"))}
+                    for label, key in fields.items()
                 ]), hide_index=True, width="stretch")
-    st.divider()
-    st.subheader("Keterbatasan sistem", anchor=False)
-    st.markdown(
-        "- Hasil diakritisasi bersifat prediktif dan masih dapat mengandung kesalahan.\n"
-        "- Evaluasi penelitian menggunakan data uji Kitab Fathul Qorib; hasilnya tidak otomatis "
-        "mewakili semua jenis teks Arab.\n"
-        "- Karakter di luar kosakata dipetakan ke `<UNK>` dan ditampilkan dalam peringatan hasil.\n"
-        "- Teks panjang diproses per segmen maksimal 300 karakter.\n"
-        "- Sistem tidak menggantikan pemeriksaan pembacaan, nahwu, atau sharaf oleh pengguna."
-    )
+        st.divider()
+    with st.container(key="about_evaluation_card", border=True):
+        st.subheader("Hasil evaluasi pada data uji", anchor=False)
+        st.caption("Kitab Fathul Qorib · Metrik evaluasi tersimpan, bukan tingkat keyakinan untuk setiap prediksi.")
+        fine = metrics_data.get("fine_tuned") if isinstance(metrics_data, dict) else None
+        if not isinstance(fine, dict):
+            st.info("Metrik evaluasi belum tersedia.")
+        else:
+            columns = st.columns(3)
+            for col, label, key in zip(columns, ["Accuracy", "DER", "WER"],
+                                       ["accuracy_percent", "der_percent", "wer_percent"]):
+                col.metric(label, format_percent(fine.get(key)))
+            st.caption("Accuracy: persentase karakter yang benar, termasuk spasi dan tanda baca. "
+                       "DER: kesalahan diakritik pada huruf Arab. "
+                       "WER: kata Arab dengan sedikitnya satu kesalahan.")
+            baseline = metrics_data.get("baseline")
+            if isinstance(baseline, dict):
+                with st.expander("Perbandingan baseline dan fine-tuned"):
+                    st.dataframe(pd.DataFrame([
+                        {"Model": name, "Accuracy": format_percent(data.get("accuracy_percent")),
+                         "DER": format_percent(data.get("der_percent")), "WER": format_percent(data.get("wer_percent"))}
+                        for name, data in [("Baseline", baseline), ("Fine-tuned", fine)]
+                    ]), hide_index=True, width="stretch")
+        st.divider()
+    with st.container(key="about_limitations_card", border=True):
+        st.subheader("Keterbatasan sistem", anchor=False)
+        st.markdown(
+            "- Hasil diakritisasi bersifat prediktif dan masih dapat mengandung kesalahan.\n"
+            "- Evaluasi penelitian menggunakan data uji Kitab Fathul Qorib; hasilnya tidak otomatis "
+            "mewakili semua jenis teks Arab.\n"
+            "- Karakter di luar kosakata dipetakan ke `<UNK>` dan ditampilkan dalam peringatan hasil.\n"
+            "- Teks panjang diproses per segmen maksimal 300 karakter.\n"
+            "- Sistem tidak menggantikan pemeriksaan pembacaan, nahwu, atau sharaf oleh pengguna."
+        )
 
 
 def sidebar_logo():
@@ -1433,19 +1645,19 @@ def sidebar_logo():
            '<feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -2 -2 -2 0 5"/>'
            '</filter></defs><image width="360" height="423" '
            f'href="data:image/png;base64,{data}" filter="url(#logo-background)"/></svg>')
-    st.image(svg, width=76)
+    st.image(svg, width=140)
 
 
 with st.sidebar:
     if LOGO_PATH.exists():
         sidebar_logo()
-    st.html('<div class="brand-university">Universitas Malikussaleh</div>'
-            '<div class="brand-rule" aria-hidden="true"></div>'
+    st.html('<div class="brand-rule" aria-hidden="true"></div>'
             '<div class="brand-kicker">Penelitian NLP</div>'
             '<div class="brand-title">Sistem Diakritisasi<br>Teks Arab Gundul</div>')
     with st.container(key="nav"):
         st.radio("Navigasi utama", PAGES, key="page", label_visibility="collapsed", width="stretch",
                  on_change=sidebar_page_changed)
+    st.html('<div class="input-sidebar-art" aria-hidden="true"></div>')
     status_label = "Model siap digunakan" if READY else "Model belum tersedia"
     status_class = "status-dot ready" if READY else "status-dot"
     st.html(f'<div class="sidebar-note"><div class="status-line"><span class="{status_class}"></span>'
@@ -1474,9 +1686,11 @@ if page == "Beranda":
 elif page == "Diakritisasi":
     render_diakritisasi()
 elif page == "Contoh Teks":
-    render_examples()
+    with st.container(key="examples_page"):
+        render_examples()
 elif page == "Tentang Model":
-    render_about()
+    with st.container(key="about_page"):
+        render_about()
 
 st.html('<footer class="footer-note">Diakritisasi Otomatis Teks Arab Gundul pada Kitab Fathul Qorib'
         '<br>BiLSTM-CRF · Universitas Malikussaleh</footer>')

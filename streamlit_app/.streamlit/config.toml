@@ -2,7 +2,7 @@
 # Canonical options live at the repository root: .streamlit/config.toml.
 [theme]
 base = "light"
-primaryColor = "#009344"
+primaryColor = "#006F34"
 backgroundColor = "#FCFDFC"
 secondaryBackgroundColor = "#F0F6F1"
 textColor = "#064937"

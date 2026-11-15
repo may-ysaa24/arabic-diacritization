@@ -1,5 +1,6 @@
 """Real canonical sources; model-free lookup plus actual-backend AppTest checks."""
 from copy import deepcopy
+import json
 from io import BytesIO
 from pathlib import Path
 import sys
@@ -75,8 +76,8 @@ def test_plain_csv_without_demo_columns(corpus):
     assert len(report['pairs']) == 1 and report['counts'] == {'tersedia': 1}
 
 
-def test_real_txt_complete_book_rejects_repeated_titles(corpus):
-    text = (r.DEMO / 'TXT/01_Thaharah.txt').read_text(encoding='utf-8-sig')
+def test_real_txt_complete_book_rejects_repeated_titles(corpus, canonical_txt):
+    text = canonical_txt('01')
     report = m.lookup(text_result(text, 'txt'), text=text, preview_drafts=True)
     assert not report.get('error')
     assert report['total'] == 317
@@ -95,31 +96,65 @@ def test_manual_paragraph_and_soft_wrapped_txt(corpus):
     assert text_lookup(text, preview=False)['counts'] == {'belum_terverifikasi': 1}
 
 
-def test_whole_multisegment_paragraph_and_incomplete_segment(corpus):
+@pytest.fixture
+def untranslated_book_corpus(corpus, tmp_path):
+    """Keep canonical Shalat text, but omit its translations only in a temp DB."""
+    index, available = corpus
+    target = next(e for e in index[0].values() if e['kitab_id'] == '02' and e['unit']
+                  and len(e['text']) > 100 and len(index[1][e['text']]) == 1)
+    assert text_lookup(target['text'])['counts'] == {'tersedia': 1}
+    original_path = r.TRANSLATIONS_PATH
+    original_bytes = original_path.read_bytes()
+    units = r.read_units()
+    target_paragraphs = {pid for pid, e in index[0].items() if e['kitab_id'] == '02'}
+    remaining = [u for u in units if u['paragraph_id'] not in target_paragraphs]
+    assert 0 < len(remaining) < len(units)
+    assert all(u['paragraph_id'] not in target_paragraphs for u in remaining)
+    path = tmp_path / 'translations_without_shalat.jsonl'
+    with path.open('x', encoding='utf-8', newline='\n') as stream:
+        for unit in remaining:
+            stream.write(json.dumps(unit, ensure_ascii=False) + '\n')
+    m._index.cache_clear()
+    try:
+        with patch.object(r, 'ORIGINAL', tmp_path), patch.object(r, 'TRANSLATIONS_PATH', path):
+            isolated = m._index(m._signature())
+            assert all(isolated[0][pid]['unit'] is None for pid in target_paragraphs)
+            assert isolated[0][available['unit']['paragraph_id']]['unit'] == available['unit']
+            yield isolated, available, target
+    finally:
+        m._index.cache_clear()
+        assert original_path.read_bytes() == original_bytes
+
+@pytest.mark.parametrize('kitab_id', ['00', '01', '02', '03', '04'])
+def test_whole_multisegment_paragraph_and_incomplete_segment(corpus, kitab_id):
     index, _ = corpus
-    e = next(e for e in index[0].values() if e['unit'] and len(e['targets']) > 1
-             and len(index[1][e['text']]) == 1)
-    assert len(text_lookup(e['text'])['pairs']) == 1
-    context = r.load_context(r.load_catalog()['books'][1])
+    e = next(e for e in index[0].values() if e['kitab_id'] == kitab_id and e['unit']
+             and len(e['targets']) > 1 and len(index[1][e['text']]) == 1)
+    whole = text_lookup(e['text'])
+    assert len(whole['pairs']) == 1 and whole['pairs'][0]['unit'] == e['unit']
+    book = next(b for b in r.load_catalog()['books'] if b['kitab_id'] == e['kitab_id'])
+    context = r.load_context(book)
     rows = [context['demo'][t['segment_id']] for t in e['targets']]
     first = rows[0]['teks_gundul']
-    assert not text_lookup(first)['pairs']
+    partial = text_lookup(first)
+    assert not partial['pairs'] and partial['counts'] == {'paragraf_tidak_lengkap': 1}
     frame = pd.DataFrame(rows).iloc[::-1]
     report = m.lookup(csv_result(frame, 'teks_gundul'), dataframe=frame, column='teks_gundul', preview_drafts=True)
-    assert len(report['pairs']) == 1
+    assert len(report['pairs']) == 1 and report['pairs'][0]['unit'] == e['unit']
     assert [s['segment_id'] for s in report['pairs'][0]['segments']] == [t['segment_id'] for t in e['targets']]
 
 
-def test_untranslated_book_unknown_similar_and_mixed_input(corpus):
-    index, e = corpus
-    shalat = next(e for e in index[0].values() if e['kitab_id'] == '02' and len(e['text']) > 100
-                  and len(index[1][e['text']]) == 1)
-    assert text_lookup(shalat['text'])['counts'] == {'terjemahan_belum_tersedia': 1}
+def test_untranslated_book_unknown_similar_and_mixed_input(untranslated_book_corpus):
+    index, e, shalat = untranslated_book_corpus
+    missing = text_lookup(shalat['text'])
+    assert not missing['pairs'] and missing['counts'] == {'terjemahan_belum_tersedia': 1}
+    assert text_lookup(e['text'])['pairs'][0]['unit'] == e['unit']
     unknown = 'هذا نص جديد خارج قاعدة البيانات'
     for text in (unknown, e['text'][:-1], e['text'] + ' جديد', e['text'].replace(' ', '', 1)):
         assert not text_lookup(text)['pairs']
     report = text_lookup(e['text'] + '\n\n' + unknown + '\n\n' + shalat['text'])
     assert len(report['pairs']) == 1 and report['total'] == 3
+    assert report['pairs'][0]['unit'] == e['unit']
     assert report['counts'] == {'tersedia': 1, 'tidak_cocok': 1, 'terjemahan_belum_tersedia': 1}
 
 
@@ -205,10 +240,10 @@ def test_additional_path_preserves_final_review_gate(corpus, tmp_path, monkeypat
     assert not text_lookup(e['text'], preview=False)['pairs']
 
 
-def test_app_whole_real_thaharah_txt_pages_and_independent_manual_state(corpus):
-    from test_ui_translation_panel import app_ready, upload, open_panel
+def test_app_whole_real_thaharah_txt_pages_and_independent_manual_state(corpus, canonical_txt):
+    from test_ui_translation_panel import app_ready, upload, open_panel, has_text, translation_values
     import inference_engine as backend
-    text = (r.DEMO / 'TXT/01_Thaharah.txt').read_text(encoding='utf-8-sig')
+    text = canonical_txt('01')
     app = app_ready()
     file_id = upload(app, 'Thaharah.txt', text.encode())
     with patch.object(backend, 'process_uploaded_file', wraps=backend.process_uploaded_file) as infer:
@@ -218,27 +253,19 @@ def test_app_whole_real_thaharah_txt_pages_and_independent_manual_state(corpus):
         report = m.lookup(app.session_state.file_result, text=text, preview_drafts=True)
         assert len(report['pairs']) == 315 and report['counts']['ambigu'] == 2
         open_panel(app, file_id)
-        app.session_state[f'translation_reference_{file_id}'] = True
-        app.checkbox(key=f'translation_reference_draft_{file_id}').check().run()
         for number in (1, 16, 32, 1):
-            app.session_state[f'translation_reference_{file_id}'] = True
             app.selectbox(key=f'translation_reference_page_{file_id}').select(number).run()
             assert not app.exception
             expected = report['pairs'][(number - 1) * 10:number * 10]
-            assert len([item for item in app.text if item.value.startswith('Paragraf:')]) == len(expected) <= 10
+            assert len(translation_values(app)) == len(expected) <= 10
             for pair in expected:
-                assert any(item.value == pair['unit']['translation']['text_indonesian'] for item in app.text)
-                assert any(item.value == pair['segments'][0]['prediction'] for item in app.text)
+                assert has_text(app, pair['unit']['translation']['text_indonesian'])
+                assert has_text(app, pair['segments'][0]['prediction'])
         assert infer.call_count == 1 and app.session_state.file_result['download_bytes'] == before
         # Both tabs render on a full rerun; the manual panel must not reset TXT's page.
-        # AppTest does not retain native expander open state between widget runs.
-        app.session_state[f'translation_reference_{file_id}'] = True
         app.text_area(key='_manual_input').input(corpus[1]['text']).run()
-        app.session_state[f'translation_reference_{file_id}'] = True
         app.button(key='process_manual').click().run()
-        app.session_state[f'translation_reference_{file_id}'] = True
         app.selectbox(key=f'translation_reference_page_{file_id}').select(16).run()
-        app.session_state[f'translation_reference_{file_id}'] = True
         app.run()
         assert app.selectbox(key=f'translation_reference_page_{file_id}').value == 16
         assert infer.call_count == 1 and app.session_state.file_result['download_bytes'] == before
@@ -246,7 +273,7 @@ def test_app_whole_real_thaharah_txt_pages_and_independent_manual_state(corpus):
 
 @pytest.mark.parametrize('mode', ['csv', 'txt', 'manual'])
 def test_app_actual_backend_content_lookup_without_reinference_or_export_changes(corpus, mode):
-    from test_ui_translation_panel import app_ready, upload, open_panel
+    from test_ui_translation_panel import app_ready, upload, open_panel, has_text
     import inference_engine as backend
     _, e = corpus
     text = e['text']
@@ -264,15 +291,12 @@ def test_app_actual_backend_content_lookup_without_reinference_or_export_changes
         result = app.session_state.manual_result if mode == 'manual' else app.session_state.file_result
         before = deepcopy(result)
         open_panel(app, file_id)
-        assert any(item.value == 'Terjemahan belum tersedia' for item in app.info)
-        app.session_state[f'translation_reference_{file_id}'] = True
-        app.checkbox(key=f'translation_reference_draft_{file_id}').check().run()
         assert not app.exception
-        assert any(item.value == e['unit']['translation']['text_indonesian'] for item in app.text)
-        assert any(item.value == r.CONTENT_DRAFT_LABEL for item in app.caption)
+        assert has_text(app, e['unit']['translation']['text_indonesian'])
+        assert not any(item.value == r.CONTENT_DRAFT_LABEL for item in app.caption)
         prediction = (result['dataframe'].iloc[0][result['output_columns']['prediction']]
                       if mode == 'csv' else result['prediction'])
-        assert any(item.value == prediction for item in app.text)
+        assert has_text(app, prediction)
         for _ in range(2):
             open_panel(app, file_id, False); open_panel(app, file_id)
         assert infer.call_count == 1

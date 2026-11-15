@@ -49,7 +49,7 @@ def test_correction_updates_main_result_and_source_in_same_rerun_without_inferen
         assert predict.call_count == 1
         assert any('arabic-text arabic-result' in body and escape(correction) in body for body in html_bodies(app))
         assert any("Koreksi Pengguna" in body for body in html_bodies(app))
-        assert any("Koreksi Pengguna" in item.value and "teks yang ditampilkan" in item.value for item in app.caption)
+        assert any("Koreksi Pengguna" in item.value and "teks koreksi yang diterapkan" in item.value for item in app.caption)
         assert any(item.label == "Akses Hasil Asli Model" for item in app.expander)
         app.button(key="restore_manual_model").click().run()
         assert app.session_state.manual_correction is None

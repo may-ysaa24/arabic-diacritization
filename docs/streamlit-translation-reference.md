@@ -1,5 +1,37 @@
 # Terjemahan Mandiri V3
 
+## Tahap T — kebijakan tampilan dan rencana pengujian (24 Oktober 2026)
+
+Keputusan pengguna pada tahap ini menggantikan ketentuan tampilan Tahap S dan petunjuk checkbox/label pada riwayat di bawah. Desain UI sekarang dipertahankan; tidak diperlukan perubahan Python untuk mengikuti keputusan ini.
+
+- **Arab Berharakat** tetap tampilan awal. Memilih **Arab + Terjemahan** langsung menampilkan Arab hasil prediksi tersimpan dan pasangan Indonesia yang cocok, tanpa checkbox konfirmasi tambahan, label draf, keterangan berbantuan AI, atau peringatan status pada kartu hasil.
+- Status akademik tidak berubah: seluruh 671 paragraf sumber tetap `draft_needs_review`, `origin=ai_assisted_original`, dan metadata pemeriksaan manusia null. Tidak ada klaim verified. Penjelasan bahwa terjemahan adalah referensi statis berbantuan AI dan belum diverifikasi ahli tetap tersedia pada **Tentang Model** (`streamlit_app/app.py`, `render_about`) dan dokumentasi ini.
+- `source_note`, identitas penyusun/sumber, seluruh target, ID, halaman, span, hash, digest dan catatan perbedaan PDF–dataset tetap tersimpan utuh dalam JSONL. Tidak menampilkan metadata pada kartu bukan izin menghapus atau mengubahnya. Sembilan ketidakcocokan Shalat yang terkonfirmasi, dua bacaan belum pasti, serta keterbatasan sambungan syarah PDF109 tetap menjadi persoalan penelitian yang terbuka; menyederhanakan tampilan tidak menyelesaikan persoalan itu.
+- Pemeriksaan identitas dan pencocokan kanonis tetap berlaku. Teks ambigu, parsial, metadata bertentangan dan prediksi yang tidak sesuai tetap ditolak/dijelaskan. Tidak ada pencocokan berdasarkan kemiripan, terjemahan baru, atau koreksi keluaran model menggunakan terjemahan. Validator mode final tetap menolak draf; pilihan tampilan UI tidak mempromosikan status data.
+- Tetap gunakan pagination sekarang: maksimal 10 paragraf per halaman unggahan dan satu paragraf per halaman input manual. Perubahan tampilan/halaman hanya membaca hasil tersimpan; terjemahan tidak masuk ekspor penelitian TXT/CSV/ZIP.
+
+### Batas pengujian tahap ini
+
+Database UI tetap di `C:/Users/LENOVO/arabic-diacritization/references/fathul_qorib/original/translations.jsonl`: 317 paragraf/328 segmen, SHA-256 `1ebe58094fe19c60b66d247c1b71afe93d7a665e756614d41f1325ccf3d145f9`. Database sumber di worktree `arabic-diacritization-translation` berisi 671 paragraf/721 segmen, SHA-256 `eeb2dc71586a07b48fba87d37dea00f01d2adcf7efb61842149fa552dc24d31c`. Seluruh 317 entri Thaharah yang sama identik pada kedua database.
+
+Uji kompatibilitas mengarahkan pembaca ke database sumber hanya melalui patch dalam proses tes terisolasi, lalu mengembalikan konfigurasi pembaca dan cache. Tidak menyalin database ke UI atau mengganti berkas aktif. Periksa validator V3, metadata, CSV/TXT/manual ketiga bagian, ambiguitas, pergantian berkas, pagination, Proses Semua, prediksi tersimpan, ekspor dan informasi Tentang Model. Label/checkbox yang tidak tampil pada hasil kini merupakan perilaku desain yang diharapkan, bukan penghambat kompatibilitas dengan sendirinya. Kesimpulan uji tidak boleh dianggap verifikasi isi terjemahan.
+
+### Hasil pengujian Tahap T
+
+Regresi lima modul terkait referensi, pasangan prediksi, pencocokan, panel UI dan multi-file: **160 lulus, 0 gagal, tanpa deselection/xfail**, 64,56 detik. Ini pengujian terarah, bukan klaim seluruh suite repository dijalankan. Validator UI menerima seluruh 671 paragraf/721 segmen sumber dengan status draf, origin dan metadata null yang dipersyaratkan; tujuh kelompok segmen identik tetap ambigu.
+
+AppTest terisolasi memakai database sumber melalui patch dalam proses: enam unggahan CSV/TXT tiga bagian diproses dengan Proses Semua, seluruh 136 halaman hasil serta navigasi kembali diperiksa, dan tiga paragraf diuji melalui input manual. CSV beridentitas menampilkan 34 Pendahuluan, 317 Thaharah dan 320 Shalat. TXT menampilkan 31, 315 dan 320; tiga paragraf Pendahuluan serta dua Thaharah tetap ditahan karena ambigu. Tampilan awal tetap Arab Berharakat; memilih Arab + Terjemahan langsung menampilkan pasangan tanpa checkbox/label draf, sesuai keputusan pengguna. Maksimal 10 paragraf pada unggahan dan satu pada manual tetap berlaku.
+
+P019_PAR003, P026_PAR003 dan P098_PAR006 tampil dengan prediksi Arab tersimpan dan Indonesia yang cocok. Catatan sumber tidak ditampilkan di hasil, tetapi seluruh JSONL sumber tetap identik. Penjelasan belum diverifikasi dan bukan keluaran model terbukti tampil di Tentang Model. Pengujian mencatat enam panggilan pemrosesan berkas dan tiga manual awal, dengan **0 inferensi tambahan** akibat perubahan tampilan/pagination. Prediksi tersimpan, dataframe, ekspor TXT/CSV/ZIP identik dan tidak memuat teks terjemahan. Browser tidak diulang pada tahap ini; bukti UI berasal dari AppTest. Tidak ada sinkronisasi database, perubahan kode/desain UI, atau verifikasi ahli.
+
+### Rencana sinkronisasi selanjutnya — belum diizinkan pada tahap ini
+
+Setelah ada instruksi lanjutan: periksa ulang branch/hash dan perubahan lokal; cadangkan biner database UI 317 paragraf ke luar repository dan verifikasi hash; validasi sumber 671/721 dan metadata; ganti hanya database tujuan secara atomik; uji lagi aplikasi dengan database tujuan nyata. Jika ada kegagalan kritis, pulihkan hanya database tujuan dari cadangan terverifikasi. Jangan menyalin kode UI dari worktree sumber, mengubah dataset/notebook/model/checkpoint, atau melakukan merge/commit/push. Cadangan drive A: yang sudah ada berada pada disk fisik yang sama dengan C:, sehingga bukan perlindungan terhadap kegagalan disk fisik.
+
+## Riwayat implementasi dan pemeriksaan sebelum Tahap T
+
+Petunjuk checkbox, label pada kartu, posisi kolom dan jumlah data di bagian riwayat berikut mendokumentasikan keadaan tahap terdahulu; kebijakan tampilan aktif dan cakupan masing-masing worktree ditetapkan pada Tahap T di atas. Temuan pemeriksaan sumber dan catatan validasi ahli tetap berlaku dan tidak dihapus.
+
 Aplikasi yang didukung tetap `streamlit_app/app.py`. Panel **Lihat Terjemahan Mandiri** menggunakan prediksi Arab yang sudah tersimpan untuk CSV, TXT, dan input manual, lalu mengambil terjemahan tersimpan satu kali per paragraf. Membuka panel tidak menjalankan inferensi. Terjemahan tidak ditambahkan ke unduhan hasil model TXT/CSV/ZIP.
 
 ## Pencocokan isi tanpa CSV khusus
@@ -247,3 +279,13 @@ Mulai dari K01, kemudian K02–K06; lanjutkan batas anatomi (S05, S07, S15), ist
 - Di luar antrean khusus terdapat **235 paragraf / 235 segmen** yang pemeriksaan awalnya selesai tanpa pertanyaan khusus tambahan dalam ringkasan ini. Ini bukan pernyataan bebas kesalahan atau persetujuan ahli; seluruhnya masih draf. Konfirmasi ahli atas 41 butir ini juga tidak otomatis memverifikasi paragraf lain.
 
 Untuk bimbingan, minta keputusan atas redaksi yang ditanyakan beserta alasan/rujukan dan cakupan paragraf yang benar-benar diperiksa. Catatan kehadiran atau pembacaan sebagian bukan persetujuan seluruh kitab. Ringkasan ini tidak mencatat nama, persetujuan, atau hasil verifikasi ahli yang belum ada. Tidak ada tes aplikasi/browser yang diulang atau perubahan pada JSONL, sumber Arab, dataset, kode maupun artefak penelitian.
+
+## Ekspor tambahan Arab dan terjemahan V3
+
+Kontrol baru tersedia secara eksplisit pada **Ekspor dengan Terjemahan**. Pilihan tampilan hasil tidak mengubah Salin, TXT, CSV, atau ZIP lama. Ekspor tambahan menggunakan prediksi tersimpan dan keputusan pencocokan kanonis yang sama; tidak menjalankan inferensi atau penerjemahan baru.
+
+- TXT UTF-8 memuat satu blok per paragraf/kelompok sumber, Arab, ID kanonis bila pasti, status pencocokan, terjemahan yang tersedia, dan catatan sumber. Keterangan draf berbantuan AI yang belum diverifikasi ahli ditulis sekali pada awal dokumen. Bagian ambigu/tidak cocok tetap memuat Arab tanpa terjemahan rekaan.
+- CSV tambahan mempertahankan semua kolom, urutan, dan jumlah baris hasil lama. Kolom `canonical_paragraph_id`, `terjemahan_indonesia_v3`, `status_pencocokan_v3`, `baris_awal_terjemahan_v3`, `status_verifikasi_v3`, dan `catatan_sumber_v3` ditambahkan. Nama yang berbenturan diberi akhiran angka; kolom pengguna tidak ditimpa. Terjemahan/catatan ditulis sekali pada baris pertama kelompok, ID/status dipertahankan pada baris lanjutannya, dan nomor baris pertama berbasis 1 menjelaskan relasinya. Semua nilai melalui sanitasi spreadsheet yang sama dengan ekspor lama.
+- ZIP tambahan mempertahankan semua anggota serta `ringkasan_status.csv` dari ZIP lama. Berkas TXT/CSV V3 dengan token nama unik ditambahkan bagi hasil yang mempunyai pasangan, bersama `ringkasan_terjemahan_v3.csv` dan `KETERANGAN_TERJEMAHAN_V3.txt`. Hasil tanpa pasangan tetap tersedia melalui anggota hasil asli. Batas ukuran tetap 32 MiB; fitur ini tidak mengubah ZIP lama.
+- Koreksi manual yang hanya mengubah harakat/spasi dapat menggunakan pasangan lama setelah pengikatan ulang teks aktif. Perubahan huruf dasar atau tanda baca diekspor dengan status `koreksi_teks_berubah` tanpa terjemahan lama; hasil asli model dan metadata database tetap utuh.
+- Pembukaan accordion dan unduhan tidak mengubah generasi hasil, pagination, atau metadata verifikasi. Cache pencocokan terikat pada isi input, prediksi, metadata identitas, dan versi sumber; cache ZIP tambahan terpisah dari ZIP lama.

@@ -29,3 +29,22 @@ results/tmp/
 
 # Browser acceptance screenshots and server logs
 results/browser-acceptance/
+
+# Local OCR tools, downloaded OCR models, environments and caches.
+/data/ocr_ulang_fathul_qorib/
+
+# Deploy only the canonical translation runtime sources, not the demo archive,
+# PDF audit images, duplicate snapshots, scripts or other generated artifacts.
+/data/demo_fathul_qorib_per_bab/*
+!/data/demo_fathul_qorib_per_bab/CSV/
+!/data/demo_fathul_qorib_per_bab/Referensi_Berharakat/
+!/data/demo_fathul_qorib_per_bab/Laporan_Audit/
+/data/demo_fathul_qorib_per_bab/CSV/*
+!/data/demo_fathul_qorib_per_bab/CSV/*.csv
+/data/demo_fathul_qorib_per_bab/Referensi_Berharakat/*
+!/data/demo_fathul_qorib_per_bab/Referensi_Berharakat/*.csv
+/data/demo_fathul_qorib_per_bab/Laporan_Audit/*
+!/data/demo_fathul_qorib_per_bab/Laporan_Audit/PETA_PARAGRAF.csv
+!/data/demo_fathul_qorib_per_bab/Laporan_Audit/Sumber/
+/data/demo_fathul_qorib_per_bab/Laporan_Audit/Sumber/*
+!/data/demo_fathul_qorib_per_bab/Laporan_Audit/Sumber/dataset_drive.csv

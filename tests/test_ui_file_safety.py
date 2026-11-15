@@ -31,7 +31,7 @@ def test_builtin_table_export_cannot_bypass_the_csv_serializer():
 def test_startup_reads_export_policy_and_theme_from_working_directory(directory):
     code = ('import streamlit as st; '
             'assert st.get_option("client.disableDataExport") is True; '
-            'assert st.get_option("theme.primaryColor") == "#009344"; '
+            'assert st.get_option("theme.primaryColor") == "#006F34"; '
             'assert st.get_option("browser.gatherUsageStats") is False')
     subprocess.run([sys.executable, "-B", "-c", code], cwd=directory, check=True,
                    capture_output=True, text=True, timeout=30)

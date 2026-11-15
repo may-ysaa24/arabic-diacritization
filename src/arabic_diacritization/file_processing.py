@@ -2,6 +2,7 @@
 from pathlib import Path
 from io import StringIO
 from collections import Counter
+import csv
 import pandas as pd
 from .config import MAX_FILE_SIZE
 from .preprocessing import normalize_text, is_arabic_letter, is_latin_letter
@@ -568,6 +569,16 @@ def read_csv_bytes(data):
 
 
     try:
+        # Match pandas' first nonempty header-line sniffing, but never let
+        # letters in a single column name (e.g. "arabic") become separators.
+        header = next((line for line in decoded["text"].splitlines() if line.strip()), "")
+        delimiters = "".join(dict.fromkeys(
+            char for char in header if not char.isalnum() and char not in "\"'\r\n"
+        ))
+        try:
+            separator = csv.Sniffer().sniff(header, delimiters=delimiters).delimiter
+        except csv.Error:
+            separator = ","
 
         dataframe = pd.read_csv(
             StringIO(
@@ -576,7 +587,7 @@ def read_csv_bytes(data):
                 ]
             ),
 
-            sep=None,
+            sep=separator,
             engine="python",
             dtype=str,
             keep_default_na=False,

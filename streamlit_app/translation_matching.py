@@ -15,6 +15,8 @@ import translation_reference as ref
 MAX_INPUT = 1_000_000
 MAX_ROWS = 10_000
 MARKS = re.compile('[\u064b-\u0652\u0670]')
+LOCAL_ROW_ID = re.compile(r'[0-9]+')
+LEGACY_COLUMNS = frozenset(('id', 'bab', 'jenis', 'baris_sumber', 'segmen', 'teks_gundul'))
 
 
 def normalize(text):
@@ -74,12 +76,22 @@ def _index(signature):
 
 
 def _candidates(text, metadata, index):
-    entries, paragraphs, segments, _ = index
+    _, paragraphs, segments, _ = index
     key = normalize(text)
     matches = {*paragraphs.get(key, ()), *segments.get(key, ())}
+    return _filter_metadata(matches, metadata, index)
+
+
+def _filter_metadata(matches, metadata, index):
+    entries = index[0]
     for name in ('dataset_version', 'id', 'paragraph_id', 'chunk_id', 'page', 'kitab_id', 'kitab'):
         value = metadata.get(name, '')
         if value == '':
+            continue
+        # Old exports use `id` for a local row ordinal, not a canonical identity.
+        # Every nonnumeric ID (including invalid/conflicting FQDEMO IDs) remains
+        # a strict constraint. Never manufacture canonical IDs from ordinals.
+        if name == 'id' and isinstance(value, str) and LOCAL_ROW_ID.fullmatch(value):
             continue
         def consistent(candidate):
             pid, ids = candidate
@@ -96,6 +108,48 @@ def _candidates(text, metadata, index):
             return all(value == str(t['pdf_page']) for t in targets)
         matches = {c for c in matches if consistent(c)}
     return matches
+
+
+def _csv_parts(records, column, index):
+    """Adapt only the identified legacy six-column source-line/chunk schema.
+
+    Source line numbers suggest boundaries; they never establish identity.
+    Multirow groups must be contiguous, have consecutive local IDs and chunks
+    starting at 1, and reconstruct an EXACT, complete canonical paragraph.
+    All other supplied canonical metadata still constrains every candidate.
+    No reordering, fuzzy repair, ayah-marker removal, or inference occurs here.
+    """
+    ordinary = [{'text': row[column], 'metadata': row, 'row': i} for i, row in enumerate(records)]
+    if (column != 'teks_gundul' or not records
+            or not all(LEGACY_COLUMNS <= row.keys() for row in records)
+            or not all(isinstance(row['id'], str) and LOCAL_ROW_ID.fullmatch(row['id']) for row in records)):
+        return ordinary
+    groups = defaultdict(list)
+    for i, row in enumerate(records):
+        groups[(row['bab'], row['baris_sumber'])].append(i)
+    parts = []
+    for positions in groups.values():
+        rows = [records[i] for i in positions]
+        positive = lambda value: (isinstance(value, str) and re.fullmatch(r'[1-9][0-9]*', value) is not None)
+        valid = (all(positive(row[name]) for row in rows for name in ('id', 'baris_sumber', 'segmen'))
+                 and positions == list(range(positions[0], positions[0] + len(rows)))
+                 and [int(row['segmen']) for row in rows] == list(range(1, len(rows) + 1))
+                 and [int(row['id']) for row in rows] == list(range(int(rows[0]['id']), int(rows[0]['id']) + len(rows)))
+                 and len({row['jenis'] for row in rows}) == 1
+                 and all(row[column].strip() for row in rows))
+        part = {'text': ' '.join(row[column] for row in rows), 'metadata': rows[0],
+                'row': positions[0], 'rows': positions}
+        matches = set()
+        if valid:
+            matches = _candidates(part['text'], rows[0], index)
+            if len(rows) > 1:
+                matches &= set(index[1].get(normalize(part['text']), ()))
+            for row in rows[1:]:
+                matches = _filter_metadata(matches, row, index)
+        # Including an empty set prevents fallback to fragments of invalid groups.
+        part['candidates'] = matches
+        parts.append(part)
+    return parts
 
 
 def _text_parts(text, index):
@@ -175,10 +229,18 @@ def _bind(parts, result, dataframe, column, text):
             if not part['candidates']:
                 part['prediction'] = None
                 continue
-            row = output.iloc[part['row']]
-            value = row[pred]
-            part['prediction'] = (value if row[status] == 'berhasil' and isinstance(value, str)
-                                  and _projection(value)[0] == _projection(part['text'])[0] else None)
+            values = []
+            for position in part.get('rows', [part['row']]):
+                row = output.iloc[position]
+                value = row[pred]
+                if (row[status] != 'berhasil' or not isinstance(value, str)
+                        or _projection(value)[0] != _projection(dataframe.iloc[position][column])[0]):
+                    break
+                values.append(value)
+            expected_rows = len(part.get('rows', [part['row']]))
+            # Keep each saved prediction verbatim. Only add a separator between
+            # legacy chunks, exactly as for the matching-only reconstruction.
+            part['prediction'] = ' '.join(values) if len(values) == expected_rows else None
         return
     prediction = result.get('prediction')
     ref.require(isinstance(prediction, str) and not result.get('status_summary', {}).get('gagal'),
@@ -201,7 +263,7 @@ def _bind(parts, result, dataframe, column, text):
         part['prediction'] = prediction[pred_spans[lo][0]:pred_spans[hi - 1][1]] if lo < hi else None
 
 
-def lookup(result, *, dataframe=None, column=None, text=None, preview_drafts=False):
+def lookup(result, *, dataframe=None, column=None, text=None, preview_drafts=False, include_parts=False):
     """Return eligible complete paragraphs and explicit per-input status counts.
 
     Canonical identities are evidence, not user authority: even IDs require exact
@@ -217,14 +279,15 @@ def lookup(result, *, dataframe=None, column=None, text=None, preview_drafts=Fal
             records = dataframe.to_dict('records')
             ref.require(all(isinstance(row[column], str) for row in records)
                         and sum(len(row[column]) for row in records) <= MAX_INPUT, 'Teks CSV melampaui batas')
-            parts = [{'text': row[column], 'metadata': row, 'row': i} for i, row in enumerate(records)]
+            parts = _csv_parts(records, column, index)
         else:
             ref.require(isinstance(text, str) and len(text) <= 250_000
                         and len(text.splitlines()) <= MAX_ROWS, 'Teks melampaui batas pencocokan')
             parts = _text_parts(text, index)
-        report['total'] = len(parts)
+        report['total'] = sum(len(part.get('rows', [0])) for part in parts)
         for part in parts:
-            part['candidates'] = _candidates(part['text'], part['metadata'], index)
+            if 'candidates' not in part:
+                part['candidates'] = _candidates(part['text'], part['metadata'], index)
         _bind(parts, result, dataframe, column, text)
         groups, statuses = defaultdict(list), {}
         for i, part in enumerate(parts):
@@ -252,9 +315,23 @@ def lookup(result, *, dataframe=None, column=None, text=None, preview_drafts=Fal
                 ordered = sorted(group, key=lambda item: min(order[sid] for sid in item[1]))
                 report['pairs'].append({'unit': entry['unit'], 'kitab': entry['kitab'],
                     'segments': [{'segment_id': ', '.join(ids), 'prediction': parts[i]['prediction']} for i, ids in ordered],
-                    'input_parts': len(group), 'first_input': min(i for i, _ in group)})
+                    'input_parts': sum(len(parts[i].get('rows', [0])) for i, _ in group),
+                    'first_input': min(i for i, _ in group)})
         report['pairs'].sort(key=lambda pair: pair['first_input'])
-        report['counts'] = dict(Counter(statuses.values()))
+        counts = Counter()
+        for i, status in statuses.items():
+            counts[status] += len(parts[i].get('rows', [0]))
+        report['counts'] = dict(counts)
+        if include_parts:
+            # Read-only provenance of decisions already made above. Exporters
+            # must not infer row identities from ordinals or repeat matching.
+            report['parts'] = []
+            for i, part in enumerate(parts):
+                unique = len(part['candidates']) == 1 and statuses[i] != 'ambigu'
+                pid = next(iter(part['candidates']))[0] if unique else ''
+                report['parts'].append({'rows': part.get('rows', [part['row']] if 'row' in part else []),
+                    'span': part.get('span'), 'paragraph_id': pid, 'status': statuses[i],
+                    'prediction': part.get('prediction')})
     except (ValueError, KeyError, TypeError, AttributeError, OSError, IndexError) as error:
         report.update(pairs=[], error='Pencocokan referensi tidak tersedia: ' + str(error))
     return report

@@ -1,2 +1,4 @@
 *.ipynb -text
 *.pt binary
+# Translation manifests validate exact CSV bytes, including embedded newlines.
+data/demo_fathul_qorib_per_bab/**/*.csv -text
