@@ -200,6 +200,31 @@ CSS += '''<style>
  .st-key-diak_page [class*="st-key-translation_columns_"] .arabic-text {font-size:27px;line-height:2.2}
 }
 @media(max-width:370px){.st-key-diak_page .result-success dl {grid-template-columns:1fr}.st-key-diak_page .result-success .processing-stat {border-right:0}}
+/* Small-screen refinements; desktop geometry and typography stay unchanged. */
+@media(max-width:430px){
+ .st-key-diak_page .input-page-hero {flex-direction:row;align-items:center;padding:.8rem;gap:.6rem}
+ .st-key-diak_page .input-page-hero h1 {font-size:1.5rem;line-height:1.25}
+ .st-key-diak_page .input-page-hero p {font-size:.85rem;line-height:1.5}
+ .st-key-diak_page .input-hero-illustration {width:64px;max-width:none;align-self:center}
+ .st-key-workspace .st-key-arabic_input textarea {font-size:24px;line-height:2;padding:.65rem .75rem}
+ .st-key-diak_page .result-success {padding:.8rem}
+ .st-key-diak_page .result-success-heading {gap:.5rem;margin-bottom:.65rem}
+ .st-key-diak_page .result-success-heading > .result-icon {width:20px;height:20px;flex-basis:20px;padding:6px}
+ .st-key-diak_page .result-success-heading h3 {font-size:1.2rem;line-height:1.35}
+ .st-key-diak_page .result-success dl {grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}
+ .st-key-diak_page .result-success .processing-stat {gap:.35rem;border-right:0}
+ .st-key-diak_page .result-success .processing-stat > .result-icon {width:16px;height:16px;flex-basis:16px;padding:5px}
+ .st-key-diak_page .result-success .processing-stat dd {font-size:.85rem;line-height:1.5;overflow-wrap:anywhere}
+ .st-key-diak_page [class*="st-key-translation_columns_"] [data-testid="stColumn"] {padding:.7rem}
+ .st-key-diak_page .result-pane-heading {font-size:1rem;line-height:1.5;flex-wrap:nowrap;gap:.4rem}
+ .st-key-diak_page .result-pane-heading .result-icon {width:18px;height:18px;flex-basis:18px;padding:5px;flex-shrink:0}
+ .st-key-diak_page [class*="st-key-translation_columns_"] .arabic-text {font-size:25px;line-height:2;overflow:visible}
+ .st-key-diak_page [class*="st-key-translation_columns_"] .translation-indonesian {font-size:1rem;line-height:1.75}
+ .st-key-diak_page .st-key-file_workspace .processing-summary-file {padding:.8rem}
+ .st-key-diak_page .st-key-file_workspace .processing-summary-file h3 {font-size:1.2rem;margin-bottom:.6rem}
+ .st-key-diak_page .st-key-file_workspace .processing-summary-file dl {gap:.6rem}
+ .st-key-diak_page .st-key-file_workspace .processing-summary-file > p {margin-top:.6rem}
+}
 </style>'''.replace('__BOOK_ICON__', _ICONS['book']).replace('__TRANSLATE_ICON__', _ICONS['translate']).replace('__PENCIL_ICON__', _ICONS['pencil'])
 CSS += '<style>' + ''.join('.result-icon-' + name + '{--result-symbol:' + uri + '}'
                           for name, uri in _ICONS.items()) + '</style>'

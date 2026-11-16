@@ -191,6 +191,8 @@ html,body {font-family:var(--sans)}
 [data-testid="stButton"] button,[data-testid="stDownloadButton"] button {min-height:var(--ui-control-height);font-weight:650;transition:border-color .16s,background .16s}
 [data-testid="stAlert"] {border-radius:11px}
 .footer-note {border-top:1px solid var(--border);margin:1.5rem .1rem .2rem;padding:.85rem 0;color:var(--muted);font-size:.75rem;line-height:1.8}
+.mobile-table-hint {display:none}
+[data-testid="stElementContainer"]:has(> [data-testid="stHtml"] .mobile-table-hint) {display:none}
 button:focus-visible,a:focus-visible,textarea:focus-visible {outline:3px solid var(--green-dark);outline-offset:3px}
 @media(min-width:1500px){
   .st-key-home_hero {padding-top:2.2rem;min-height:400px}
@@ -205,6 +207,13 @@ button:focus-visible,a:focus-visible,textarea:focus-visible {outline:3px solid v
   .guide-item:not(:last-child)::after {display:none}
 }
 @media(max-width:780px){
+  .stApp [data-testid="stHeader"] {background:var(--canvas)}
+  .stApp:has(.st-key-examples_page) [data-testid="stHeader"],.stApp:has(.st-key-about_page) [data-testid="stHeader"] {background:var(--page-background)}
+  [data-testid="stMain"] {scroll-padding-top:64px}
+  button[data-testid="stExpandSidebarButton"],[data-testid="stSidebarCollapseButton"] button {min-width:44px;min-height:44px;width:44px;height:44px;box-sizing:border-box;padding:8px}
+  [data-testid="stSidebarHeader"] {height:44px;min-height:44px}
+  [data-testid="stElementContainer"]:has(> [data-testid="stHtml"] .mobile-table-hint) {display:block}
+  .mobile-table-hint {display:block;margin:.2rem 0 .4rem;color:var(--muted);font-size:.75rem;line-height:1.5}
   .stApp [data-testid="stSidebar"][aria-expanded="true"] {min-width:0;width:min(var(--ui-sidebar-width),calc(100vw - 45px))}
   .stMainBlockContainer {padding:3.2rem .9rem 1.2rem}
    .topline {margin:0 -.9rem;padding:0 .9rem .65rem;font-size:.77rem;gap:.65rem}
@@ -1357,6 +1366,7 @@ def render_file_result(result, filename, *, upload_data=None, dataframe=None, co
                                text=source_text, filename=filename)
     if result["input_type"] == "csv":
         with st.expander('Tabel hasil CSV dan metadata'):
+            st.html('<p class="mobile-table-hint">Geser tabel ke samping untuk melihat kolom lainnya.</p>')
             table_height = min(320, 35 * (len(result["dataframe"]) + 1) + 3)
             st.dataframe(result["dataframe"], hide_index=True, width="stretch", height=table_height, row_height=35)
     with st.expander('Detail ekspor'):
@@ -1455,6 +1465,7 @@ def render_file():
                                     st.info('Kolom terpilih tidak terdeteksi berisi teks Arab. '
                                             'Baris non-Arab tidak diprediksi model.')
                                 with st.expander("Pratinjau CSV"):
+                                    st.html('<p class="mobile-table-hint">Geser tabel ke samping untuk melihat kolom lainnya.</p>')
                                     st.dataframe(dataframe.head(5), hide_index=True, width="stretch")
                                     st.caption("Pratinjau maksimal 5 baris. Pemrosesan menggunakan seluruh berkas.")
                                 with st.expander("Pratinjau teks kolom terpilih (RTL)"):
