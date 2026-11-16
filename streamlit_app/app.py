@@ -237,7 +237,13 @@ button:focus-visible,a:focus-visible,textarea:focus-visible {outline:3px solid v
 @media(max-width:430px){
   .topline {font-size:.7rem}
   .breadcrumb,.topline-book {gap:.45rem}
-  .hero h1 {font-size:1.85rem}
+  .st-key-home_hero {padding:.75rem 0 2rem;gap:.6rem}
+  .hero .eyebrow {margin-bottom:.5rem}
+  .hero-rule {margin-bottom:.75rem}
+  .hero h1 {font-size:clamp(1.5rem,6.5vw,1.65rem);line-height:1.2;margin-bottom:.65rem}
+  .hero h1 span {line-height:1.35;margin-top:.4rem}
+  .hero p {line-height:1.65;margin-bottom:.6rem}
+  .st-key-home_actions {margin-top:.25rem}
   .arabic-text {font-size:24px}
   .st-key-arabic_input textarea,.st-key-arabic_correction textarea {font-size:23px}
   .sidebar-note {margin-top:1.75rem}

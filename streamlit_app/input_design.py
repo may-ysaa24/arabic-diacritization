@@ -202,10 +202,12 @@ CSS += '''<style>
 @media(max-width:370px){.st-key-diak_page .result-success dl {grid-template-columns:1fr}.st-key-diak_page .result-success .processing-stat {border-right:0}}
 /* Small-screen refinements; desktop geometry and typography stay unchanged. */
 @media(max-width:430px){
- .st-key-diak_page .input-page-hero {flex-direction:row;align-items:center;padding:.8rem;gap:.6rem}
- .st-key-diak_page .input-page-hero h1 {font-size:1.5rem;line-height:1.25}
- .st-key-diak_page .input-page-hero p {font-size:.85rem;line-height:1.5}
- .st-key-diak_page .input-hero-illustration {width:64px;max-width:none;align-self:center}
+ .st-key-diak_page .input-page-hero {display:grid;grid-template-columns:minmax(0,1fr) 56px;align-items:center;padding:.7rem .8rem;gap:.4rem .5rem}
+ .st-key-diak_page .input-hero-title,.st-key-diak_page .input-hero-title > div {display:contents}
+ .st-key-diak_page .input-page-hero h1 {grid-column:1 / -1;font-size:1.375rem;line-height:1.25}
+ .st-key-diak_page .input-page-hero p {grid-column:1;font-size:.85rem;line-height:1.5;margin:0}
+ .st-key-diak_page .input-hero-title::after {grid-column:1 / -1;margin-top:.2rem}
+ .st-key-diak_page .input-hero-illustration {grid-column:2;grid-row:2;width:56px;max-width:none;align-self:center}
  .st-key-workspace .st-key-arabic_input textarea {font-size:24px;line-height:2;padding:.65rem .75rem}
  .st-key-diak_page .result-success {padding:.8rem}
  .st-key-diak_page .result-success-heading {gap:.5rem;margin-bottom:.65rem}
